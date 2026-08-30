@@ -1,19 +1,20 @@
 import { useState, useEffect, useCallback } from 'react';
 
 import Box from '@mui/material/Box';
+import Tab from '@mui/material/Tab';
 import Card from '@mui/material/Card';
 import Chip from '@mui/material/Chip';
 import Grid from '@mui/material/Grid';
-import Step from '@mui/material/Step';
+import Tabs from '@mui/material/Tabs';
 import Alert from '@mui/material/Alert';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
-import Stepper from '@mui/material/Stepper';
+import { useTheme } from '@mui/material/styles';
 import Container from '@mui/material/Container';
-import StepLabel from '@mui/material/StepLabel';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import LoadingButton from '@mui/lab/LoadingButton';
+import useMediaQuery from '@mui/material/useMediaQuery';
 
 import {
   type Turno,
@@ -31,15 +32,27 @@ import {
   verificarCodigoResponsavel,
 } from 'src/lib/creche-api';
 
+import { Logo } from 'src/components/logo';
+
 // ----------------------------------------------------------------------
 
 const ANO_PROCESSO = new Date().getFullYear();
-const STEPS = ['Login', 'Cadastrar filho(a)', 'Escolher unidades', 'Status'];
 
 type Etapa = 0 | 1 | 2 | 3;
 
+const TABS: Array<{ value: Etapa; label: string }> = [
+  { value: 0, label: 'Login' },
+  { value: 1, label: 'Cadastrar filho(a)' },
+  { value: 2, label: 'Escolher unidades' },
+  { value: 3, label: 'Status' },
+];
+
 export default function PortalPage() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
   const [etapa, setEtapa] = useState<Etapa>(0);
+  const [etapaMaxima, setEtapaMaxima] = useState<Etapa>(0);
   const [responsavelId, setResponsavelId] = useState<string | null>(null);
   const [bairroResponsavel, setBairroResponsavel] = useState('');
   const [crianca, setCrianca] = useState<Crianca | null>(null);
@@ -51,58 +64,104 @@ export default function PortalPage() {
     }
   }, []);
 
-  const irParaEscolhaOuStatus = useCallback(async (idCrianca: string) => {
-    const s = await getStatusCrianca(idCrianca);
-    setStatus(s);
-    setEtapa(s.inscricaoAtiva ? 3 : 2);
+  const irParaEtapa = useCallback((novaEtapa: Etapa) => {
+    setEtapa(novaEtapa);
+    setEtapaMaxima((atual) => (novaEtapa > atual ? novaEtapa : atual));
   }, []);
+
+  const irParaEscolhaOuStatus = useCallback(
+    async (idCrianca: string) => {
+      const s = await getStatusCrianca(idCrianca);
+      setStatus(s);
+      irParaEtapa(s.inscricaoAtiva ? 3 : 2);
+    },
+    [irParaEtapa]
+  );
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.neutral', py: { xs: 3, md: 6 } }}>
       <title>Portal da Família — GestaoEducRio</title>
-      <Container maxWidth="sm">
-        <Typography variant="h4" sx={{ mb: 1 }}>
+      <Container maxWidth="md">
+        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
+          <Logo isSingle={false} sx={{ width: 190, height: 56 }} />
+        </Box>
+
+        <Typography variant="h4" sx={{ mb: 1, textAlign: 'center' }}>
           Inscrição Creche
         </Typography>
-        <Typography variant="body2" sx={{ color: 'text.secondary', mb: 4 }}>
+        <Typography variant="body2" sx={{ color: 'text.secondary', mb: 4, textAlign: 'center' }}>
           Cadastre seu filho(a) e escolha as unidades mais próximas de você.
         </Typography>
 
-        <Stepper activeStep={etapa} sx={{ mb: 4 }}>
-          {STEPS.map((label) => (
-            <Step key={label}>
-              <StepLabel>{label}</StepLabel>
-            </Step>
-          ))}
-        </Stepper>
+        <Card sx={{ display: 'flex', minHeight: 480, flexDirection: { xs: 'column', md: 'row' } }}>
+          <Tabs
+            orientation={isMobile ? 'horizontal' : 'vertical'}
+            variant={isMobile ? 'scrollable' : 'standard'}
+            scrollButtons={isMobile ? 'auto' : undefined}
+            allowScrollButtonsMobile={isMobile}
+            value={etapa}
+            onChange={(_event, newValue: Etapa) => {
+              if (newValue <= etapaMaxima) setEtapa(newValue);
+            }}
+            sx={{
+              p: isMobile ? 1 : 2,
+              width: { md: 220 },
+              bgcolor: 'background.neutral',
+              borderRight: { md: `1px solid ${theme.vars.palette.divider}` },
+              borderBottom: { xs: `1px solid ${theme.vars.palette.divider}`, md: 'none' },
+              '& .MuiTab-root': {
+                alignItems: isMobile ? 'center' : 'flex-start',
+                textAlign: isMobile ? 'center' : 'left',
+                minHeight: 48,
+                mx: isMobile ? 0.5 : 1.5,
+                my: isMobile ? 0 : 0.5,
+                borderRadius: 1,
+              },
+              '& .Mui-selected': {
+                bgcolor: 'background.paper',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
+              },
+              '& .MuiTabs-indicator': { display: 'none' },
+            }}
+          >
+            {TABS.map((tab) => (
+              <Tab
+                key={tab.value}
+                value={tab.value}
+                label={tab.label}
+                disabled={tab.value > etapaMaxima}
+              />
+            ))}
+          </Tabs>
 
-        <Card sx={{ p: { xs: 3, md: 4 } }}>
-          {etapa === 0 && (
-            <EtapaLogin
-              onLogado={(id, bairro) => {
-                setResponsavelId(id);
-                setBairroResponsavel(bairro);
-                setEtapa(1);
-              }}
-            />
-          )}
-          {etapa === 1 && responsavelId && (
-            <EtapaCadastroCrianca
-              responsavelId={responsavelId}
-              onCriada={(c) => {
-                setCrianca(c);
-                irParaEscolhaOuStatus(c.id);
-              }}
-            />
-          )}
-          {etapa === 2 && crianca && (
-            <EtapaEscolhaUnidades
-              crianca={crianca}
-              bairroResponsavel={bairroResponsavel}
-              onConcluida={() => irParaEscolhaOuStatus(crianca.id)}
-            />
-          )}
-          {etapa === 3 && status && <EtapaStatus status={status} />}
+          <Box sx={{ p: { xs: 3, md: 4 }, flex: '1 1 auto' }}>
+            {etapa === 0 && (
+              <EtapaLogin
+                onLogado={(id, bairro) => {
+                  setResponsavelId(id);
+                  setBairroResponsavel(bairro);
+                  irParaEtapa(1);
+                }}
+              />
+            )}
+            {etapa === 1 && responsavelId && (
+              <EtapaCadastroCrianca
+                responsavelId={responsavelId}
+                onCriada={(c) => {
+                  setCrianca(c);
+                  irParaEscolhaOuStatus(c.id);
+                }}
+              />
+            )}
+            {etapa === 2 && crianca && (
+              <EtapaEscolhaUnidades
+                crianca={crianca}
+                bairroResponsavel={bairroResponsavel}
+                onConcluida={() => irParaEscolhaOuStatus(crianca.id)}
+              />
+            )}
+            {etapa === 3 && status && <EtapaStatus status={status} />}
+          </Box>
         </Card>
       </Container>
     </Box>
