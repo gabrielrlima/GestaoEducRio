@@ -34,7 +34,7 @@ export function NavAccount({ sx, ...other }: BoxProps) {
     >
       <Box sx={{ display: 'flex', alignItems: 'center', flexDirection: 'column' }}>
         <Avatar sx={{ width: 40, height: 40, bgcolor: 'primary.main' }}>
-          <Iconify icon="solar:shield-check-bold" width={22} />
+          <Iconify icon="solar:shield-check-bold" width={22} sx={{ color: 'common.white' }} />
         </Avatar>
 
         <Box sx={{ mb: 1.5, mt: 1, width: 1 }}>
