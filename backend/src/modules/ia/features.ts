@@ -3,6 +3,7 @@ import { desvioDeRotaKm, distanciaAteRotaKm, haversineKm, type Ponto } from '../
 import type { Responsavel } from '../responsaveis/service';
 import { calcularGrupamentoPorIdade, type Crianca } from '../criancas/service';
 import type { Grupamento, Turno } from '../unidades/types';
+import { SQL_UNIDADE_LOCALIZAVEL } from '../unidades/service';
 
 /**
  * Camada determinística do agente de recomendação: tudo que é cálculo (distâncias por
@@ -470,7 +471,7 @@ export function buscarCandidatas(
   const unidades = db
     .query(
       `SELECT u.id, u.nome, u.bairro, u.tipo_gestao, u.latitude, u.longitude
-       FROM unidade u WHERE u.ativa = 1`
+       FROM unidade u WHERE u.ativa = 1 AND ${SQL_UNIDADE_LOCALIZAVEL}`
     )
     .all() as UnidadeRow[];
 
