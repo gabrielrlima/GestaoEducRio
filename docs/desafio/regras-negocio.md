@@ -66,3 +66,13 @@
 | R19–R20 (planejamento baseado só em histórico) | Oferta de vagas não antecipa mudanças reais de demanda por território | Eixo 1 |
 
 > Ao propor uma solução para um eixo, referenciar explicitamente qual(is) regra(s) dessa tabela ela substitui ou corrige.
+
+## 7. Regras adicionais (fonte: `briefing-oficial-sme.md`, documento oficial "problema completo")
+
+- **R27.** A régua de pontuação vigente em 2021–2023 tinha 3 faixas: 100 pontos (Cartão Família Carioca / Bolsa Família / deficiência da criança / Programa Territórios Sociais), 10 pontos (violência doméstica, drogas/álcool no núcleo familiar, déficit nutricional/doença crônica, refugiado, responsável 60+ ou com deficiência), 5 pontos (membro do núcleo familiar presidiário/ex-presidiário nos últimos 5 anos).
+- **R28.** Em 2024 a régua foi reformulada: CadÚnico passou a ter o maior peso; Bolsa Família/Cartão Carioca caiu drasticamente. Em 2025, CadÚnico isolado é o critério de maior peso (51 pontos) e "público-alvo da educação especial" vale 25 pontos. **Comparação de posição na fila entre anos exige a tabela de pesos do ano específico** — não existe régua fixa (reforça R7-R8 e o gotcha de Query C em `dataset-dicionario.md`).
+- **R29.** Quando a criança não tem CPF, DNV nem NIS, o sistema gera o código anônimo agrupando por nome + data de nascimento — o que pode **colidir crianças diferentes sob o mesmo código anonimizado**, distorcendo contagem de fila por família. Isso é uma falha de identificação do sistema atual, não só uma característica da anonimização do dataset do hackathon.
+- **R30.** Em cerca de **0,2% das inscrições**, uma opção do cadastro aparece "Selecionada" enquanto outra opção do mesmo cadastro permanece "Lista de espera" simultaneamente — um estado transitório inconsistente que hoje só é detectado por checagem manual, linha a linha.
+- **R31.** Não existe hoje nenhum painel que sinalize, por unidade e por criança, há quanto tempo uma vaga está "Selecionada" aguardando confirmação — toda a visibilidade de prazo é manual.
+- **R32.** O sistema interno de inscrição/classificação é internamente chamado **ICH** (explica o prefixo `ich_` nas colunas do dataset, ex. `ich_perg_id`, `ich_situacaoIntegral`).
+- **R33.** O planejamento de vagas (Eixo 1) hoje já combina 3 fontes, não só a fila do ano anterior: (a) fila do ano anterior como "demanda manifesta", (b) análise de nascidos vivos do IBGE, (c) histórico de matriculados da rede — refina R19 (a demanda IBGE já é insumo real, não uma ideia nova de enriquecimento).

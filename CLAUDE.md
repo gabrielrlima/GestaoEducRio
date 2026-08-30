@@ -50,6 +50,7 @@ Ainda **não scaffolded** — convenções TBD. Preencher esta seção assim que
 
 ## Notas
 
+- `docs/desafio/briefing-oficial-sme.md` — **documento oficial "problema completo"** (fonte: Briefing_SME.docx, mais detalhado e autoritativo que os slides), com nome oficial do desafio ("Match Perfeito"), tabela exata de pesos de pontuação, gaps do processo atual (ex.: 0,2% de inconsistência de estado, colisão de identidade de criança), fluxo detalhado e a "utilidade sugerida" de cada tabela de dados. **Em caso de divergência com os outros docs, este é o mais autoritativo.**
 - `docs/desafio/prefeitura-rio-creches.md` — briefing narrativo do desafio (problema, fluxos, dados disponibilizados, anonimização), baseado nos slides do evento. Ler antes de propor features.
 - `docs/desafio/regras-negocio.md` — regras de negócio atômicas e numeradas (R1, R2, ...), separadas do briefing narrativo. Usar como checklist ao desenhar schema, validações, endpoints ou lógica de classificação/convocação.
 - `docs/desafio/regras-evento.md` — regras de **submissão/competição** do hackathon (prazo, README obrigatório, critérios de julgamento). Diferente das regras de negócio acima.
