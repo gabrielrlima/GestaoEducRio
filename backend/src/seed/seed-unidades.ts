@@ -74,6 +74,7 @@ interface Geolocalizacao {
   latitude: number;
   longitude: number;
   cre: number | null;
+  bairro: string | null;
 }
 
 const TIPOS_CRECHE_RELEVANTES = new Set(['Creche', 'Creche Parceira', 'EDI', 'CDEI']);
@@ -99,7 +100,34 @@ function parseGeolocalizacoes(buffer: ArrayBuffer): Map<string, Geolocalizacao> 
       latitude: lat,
       longitude: lng,
       cre: row.CRE != null ? Number(row.CRE) : null,
+      bairro: row.BAIRRO != null ? String(row.BAIRRO).trim() : null,
     });
+  }
+  return map;
+}
+
+/**
+ * Higienização de dados — ~210 unidades (≈10%) vêm da Query D sem bairro
+ * (endereço vazio na fonte). A aba `Unidades_Unificadas` (acima) só cobre
+ * geolocalização de unidades de creche; esta segunda aba da mesma planilha
+ * (`Planilha1`, sem lat/long, mas com bairro) cobre um conjunto de códigos
+ * parcialmente diferente — usada aqui só como fallback de bairro pras
+ * unidades que o `parseGeolocalizacoes` não encontrou. Ver
+ * docs/desafio/higienizacao-bairro.md para a estratégia completa e o que
+ * fica de fora (fica só "Não informado", requer curadoria manual via
+ * PATCH /unidades/:id).
+ */
+function parseBairrosPlanilha1(buffer: ArrayBuffer): Map<string, string> {
+  const workbook = XLSX.read(buffer, { type: 'array' });
+  const sheet = workbook.Sheets['Planilha1'];
+  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: null });
+
+  const map = new Map<string, string>();
+  for (const row of rows) {
+    const designacao = row['Designação'];
+    const bairro = row['Bairro'];
+    if (designacao == null || !bairro) continue;
+    map.set(normalizeUnitCode(String(designacao)), String(bairro).trim());
   }
   return map;
 }
@@ -112,16 +140,21 @@ async function main() {
   console.log(`[seed-unidades] ${unidades.length} unidades encontradas na Query D`);
 
   let geoMap = new Map<string, Geolocalizacao>();
+  let bairroFallbackMap = new Map<string, string>();
   try {
     const xlsxBuffer = await Bun.file(UNIDADES_XLSX_PATH).arrayBuffer();
     geoMap = parseGeolocalizacoes(xlsxBuffer);
+    bairroFallbackMap = parseBairrosPlanilha1(xlsxBuffer);
     console.log(`[seed-unidades] ${geoMap.size} unidades geocodificadas na planilha complementar`);
+    console.log(`[seed-unidades] ${bairroFallbackMap.size} unidades com bairro na aba Planilha1 (fallback)`);
   } catch (error) {
     console.warn('[seed-unidades] planilha de geolocalização não encontrada, seguindo sem lat/long:', (error as Error).message);
   }
 
   const contarPorTipo: Record<string, number> = {};
   let comLatLong = 0;
+  let bairroRecuperado = 0;
+  const SEM_BAIRRO = 'Não informado';
 
   const inserir = db.query(
     `INSERT OR IGNORE INTO unidade
@@ -132,8 +165,22 @@ async function main() {
   const transacao = db.transaction(() => {
     for (const unidade of unidades) {
       contarPorTipo[unidade.tipoGestao] = (contarPorTipo[unidade.tipoGestao] ?? 0) + 1;
-      const geo = geoMap.get(normalizeUnitCode(unidade.escCodigo));
+      const codigoNormalizado = normalizeUnitCode(unidade.escCodigo);
+      const geo = geoMap.get(codigoNormalizado);
       if (geo) comLatLong++;
+
+      // Higienização: quando a Query D não trouxe bairro, tenta recuperar
+      // cruzando por esc_codigo com a planilha complementar (Camada 1:
+      // Unidades_Unificadas com bairro; Camada 2: Planilha1) — ver
+      // docs/desafio/higienizacao-bairro.md.
+      let bairroFinal = unidade.bairro;
+      if (bairroFinal === SEM_BAIRRO) {
+        const bairroRecuperadoValor = geo?.bairro ?? bairroFallbackMap.get(codigoNormalizado);
+        if (bairroRecuperadoValor) {
+          bairroFinal = bairroRecuperadoValor;
+          bairroRecuperado++;
+        }
+      }
 
       inserir.run({
         $id: randomUUID(),
@@ -145,7 +192,7 @@ async function main() {
         $logradouro: unidade.logradouro,
         $numero: unidade.numero,
         $complemento: unidade.complemento,
-        $bairro: unidade.bairro,
+        $bairro: bairroFinal,
         $cep: unidade.cep,
         $latitude: geo?.latitude ?? null,
         $longitude: geo?.longitude ?? null,
@@ -154,7 +201,13 @@ async function main() {
   });
   transacao();
 
+  const semBairroAntes = unidades.filter((u) => u.bairro === SEM_BAIRRO).length;
   console.log('[seed-unidades] importação concluída:', { total: unidades.length, comLatLong, contarPorTipo });
+  console.log('[seed-unidades] higienização de bairro:', {
+    semBairroNaFonte: semBairroAntes,
+    recuperadosViaPlanilha: bairroRecuperado,
+    aindaSemBairro: semBairroAntes - bairroRecuperado,
+  });
 }
 
 await main();
