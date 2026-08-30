@@ -72,5 +72,6 @@ Fica em `backend/` (Bun + Elysia + TypeScript, SQLite via `bun:sqlite`, sem ORM)
   - `layout-navigation-settings.md` — Layout, navegação & settings
   - `minimal-ui-kit-reference.md` — Env vars, chamadas de API, autenticação, i18n, Tailwind
 - `docs/desafio/backend-spec.md` — spec completa do backend Elysia (schema DDL-ready, endpoints, como R2/R8 são resolvidos, ordem de implementação sugerida) — gerada antes do scaffold, algumas decisões de auth evoluíram durante a implementação (ver seção Backend acima para o estado real).
+- `docs/arquitetura-c4.md` — Modelo C4 (Contexto → Container → Componente) da arquitetura real implementada, com tabela de decisões de arquitetura (ADR-lite). Backend hoje é CRUD por módulo, **não CQRS** — decisão registrada e justificada nesse doc.
 - `docs/SDD.md` — **checklist de trabalho do dia**, não doc de referência estático: varredura de todas as lacunas do repo (frontend, backend, dados, produto, infra, submissão, documentação) com um checklist priorizado por dependência até o prazo das 16h30. Gerado uma vez, ponto-no-tempo — atualizar pontualmente, não regenerar do zero.
 - Este CLAUDE.md deve ser mantido atualizado conforme o projeto evolui — especialmente a seção Decisões acima, e quando o produto for definido e o backend for scaffolded.
