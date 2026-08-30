@@ -81,6 +81,8 @@ export interface UnidadeProxima {
   unidadeId: string;
   nome: string;
   bairro: string;
+  latitude: number | null;
+  longitude: number | null;
   distanciaKm: number | null;
   mesmoBairro: boolean;
   vagasDisponiveis: number;
@@ -94,6 +96,11 @@ export interface Responsavel {
   email: string;
   telefone: string | null;
   bairro: string;
+  logradouro: string | null;
+  numero: string | null;
+  cep: string | null;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 export interface Crianca {
@@ -210,6 +217,8 @@ export async function cadastrarResponsavel(input: {
   bairro: string;
   telefone?: string;
   cep?: string;
+  logradouro?: string;
+  numero?: string;
 }) {
   const { data } = await client.post<Responsavel>('/responsaveis', input);
   return data;

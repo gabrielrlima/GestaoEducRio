@@ -110,6 +110,8 @@ interface UnidadeProxima {
   unidadeId: string;
   nome: string;
   bairro: string;
+  latitude: number | null;
+  longitude: number | null;
   distanciaKm: number | null;
   mesmoBairro: boolean;
   vagasDisponiveis: number;
@@ -173,6 +175,8 @@ export function unidadesProximas(params: {
       unidadeId: row.id,
       nome: row.nome,
       bairro: row.bairro,
+      latitude: row.latitude,
+      longitude: row.longitude,
       distanciaKm,
       mesmoBairro,
       vagasDisponiveis: row.vagas_disponiveis,

@@ -25,6 +25,9 @@
 /* map */
 @import './components/map/styles.css';
 
+/* endereco-map (Leaflet/OSM) */
+@import './components/endereco-map/styles.css';
+
 /* lightbox */
 @import './components/lightbox/styles.css';
 

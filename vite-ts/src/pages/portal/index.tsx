@@ -9,29 +9,35 @@ import Alert from '@mui/material/Alert';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
 import Stepper from '@mui/material/Stepper';
+import Collapse from '@mui/material/Collapse';
 import Container from '@mui/material/Container';
 import StepLabel from '@mui/material/StepLabel';
 import TextField from '@mui/material/TextField';
+import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
 import LoadingButton from '@mui/lab/LoadingButton';
 
 import {
+  getToken,
   type Turno,
   type Crianca,
-  type RecomendacaoIA,
-  type StatusConsolidado,
-  type UnidadeProxima,
-  getToken,
   getResponsavel,
   criarInscricao,
+  type Responsavel,
   cadastrarCrianca,
   getStatusCrianca,
   unidadesProximas,
+  type RecomendacaoIA,
+  type UnidadeProxima,
   cadastrarResponsavel,
   recomendarUnidadesIA,
+  type StatusConsolidado,
   solicitarCodigoResponsavel,
   verificarCodigoResponsavel,
 } from 'src/lib/creche-api';
+
+import { Iconify } from 'src/components/iconify';
+import { EnderecoMap, type EnderecoMapMarcador } from 'src/components/endereco-map/endereco-map';
 
 // ----------------------------------------------------------------------
 
@@ -42,8 +48,7 @@ type Etapa = 0 | 1 | 2 | 3;
 
 export default function PortalPage() {
   const [etapa, setEtapa] = useState<Etapa>(0);
-  const [responsavelId, setResponsavelId] = useState<string | null>(null);
-  const [bairroResponsavel, setBairroResponsavel] = useState('');
+  const [responsavel, setResponsavel] = useState<Responsavel | null>(null);
   const [crianca, setCrianca] = useState<Crianca | null>(null);
   const [status, setStatus] = useState<StatusConsolidado | null>(null);
 
@@ -81,27 +86,25 @@ export default function PortalPage() {
         <Card sx={{ p: { xs: 3, md: 4 } }}>
           {etapa === 0 && (
             <EtapaLogin
-              onLogado={(id, bairro) => {
-                setResponsavelId(id);
-                setBairroResponsavel(bairro);
+              onLogado={(r) => {
+                setResponsavel(r);
                 setEtapa(1);
               }}
             />
           )}
-          {etapa === 1 && responsavelId && (
+          {etapa === 1 && responsavel && (
             <EtapaCadastroCrianca
-              responsavelId={responsavelId}
+              responsavelId={responsavel.id}
               onCriada={(c) => {
                 setCrianca(c);
                 irParaEscolhaOuStatus(c.id);
               }}
             />
           )}
-          {etapa === 2 && crianca && responsavelId && (
+          {etapa === 2 && crianca && responsavel && (
             <EtapaEscolhaUnidades
               crianca={crianca}
-              responsavelId={responsavelId}
-              bairroResponsavel={bairroResponsavel}
+              responsavel={responsavel}
               onConcluida={() => irParaEscolhaOuStatus(crianca.id)}
             />
           )}
@@ -114,12 +117,15 @@ export default function PortalPage() {
 
 // ----------------------------------------------------------------------
 
-function EtapaLogin({ onLogado }: { onLogado: (responsavelId: string, bairro: string) => void }) {
+function EtapaLogin({ onLogado }: { onLogado: (responsavel: Responsavel) => void }) {
   const [cpf, setCpf] = useState('');
   const [dataNascimento, setDataNascimento] = useState('');
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [bairro, setBairro] = useState('');
+  const [logradouro, setLogradouro] = useState('');
+  const [numero, setNumero] = useState('');
+  const [cep, setCep] = useState('');
   const [precisaCadastrar, setPrecisaCadastrar] = useState(false);
   const [codigoSolicitado, setCodigoSolicitado] = useState(false);
   const [codigo, setCodigo] = useState('');
@@ -135,7 +141,16 @@ function EtapaLogin({ onLogado }: { onLogado: (responsavelId: string, bairro: st
     setLoading(true);
     try {
       if (precisaCadastrar) {
-        await cadastrarResponsavel({ cpf, nome, dataNascimento, email, bairro });
+        await cadastrarResponsavel({
+          cpf,
+          nome,
+          dataNascimento,
+          email,
+          bairro,
+          logradouro: logradouro || undefined,
+          numero: numero || undefined,
+          cep: cep || undefined,
+        });
       }
       const resultado = await solicitarCodigoResponsavel(cpf, dataNascimento);
       setInfoEnvio(
@@ -163,7 +178,7 @@ function EtapaLogin({ onLogado }: { onLogado: (responsavelId: string, bairro: st
     try {
       const { responsavelId } = await verificarCodigoResponsavel(cpf, codigo);
       const responsavel = await getResponsavel(responsavelId);
-      onLogado(responsavelId, responsavel.bairro);
+      onLogado(responsavel);
     } catch (e) {
       setErro((e as Error).message);
     } finally {
@@ -205,6 +220,21 @@ function EtapaLogin({ onLogado }: { onLogado: (responsavelId: string, bairro: st
           <TextField label="Nome completo" value={nome} onChange={(e) => setNome(e.target.value)} />
           <TextField label="E-mail" value={email} onChange={(e) => setEmail(e.target.value)} />
           <TextField label="Bairro" value={bairro} onChange={(e) => setBairro(e.target.value)} />
+          <Stack direction="row" spacing={1.5}>
+            <TextField
+              label="Rua"
+              value={logradouro}
+              onChange={(e) => setLogradouro(e.target.value)}
+              sx={{ flex: 2 }}
+            />
+            <TextField label="Número" value={numero} onChange={(e) => setNumero(e.target.value)} sx={{ flex: 1 }} />
+          </Stack>
+          <TextField
+            label="CEP"
+            value={cep}
+            onChange={(e) => setCep(e.target.value)}
+            helperText="Usado pra localizar sua casa no mapa e ordenar as creches mais próximas."
+          />
         </>
       )}
 
@@ -273,13 +303,11 @@ function EtapaCadastroCrianca({
 
 function EtapaEscolhaUnidades({
   crianca,
-  responsavelId,
-  bairroResponsavel,
+  responsavel,
   onConcluida,
 }: {
   crianca: Crianca;
-  responsavelId: string;
-  bairroResponsavel: string;
+  responsavel: Responsavel;
   onConcluida: () => void;
 }) {
   const [candidatas, setCandidatas] = useState<UnidadeProxima[]>([]);
@@ -288,23 +316,29 @@ function EtapaEscolhaUnidades({
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [expandidas, setExpandidas] = useState<string[]>([]);
 
   const [recomendacaoIA, setRecomendacaoIA] = useState<RecomendacaoIA | null>(null);
   const [pedindoRecomendacao, setPedindoRecomendacao] = useState(false);
   const [erroRecomendacao, setErroRecomendacao] = useState<string | null>(null);
 
   useEffect(() => {
-    unidadesProximas({ bairro: bairroResponsavel, anoProcesso: ANO_PROCESSO })
+    unidadesProximas({
+      bairro: responsavel.bairro,
+      lat: responsavel.latitude ?? undefined,
+      lng: responsavel.longitude ?? undefined,
+      anoProcesso: ANO_PROCESSO,
+    })
       .then(setCandidatas)
       .finally(() => setLoading(false));
-  }, [bairroResponsavel]);
+  }, [responsavel.bairro, responsavel.latitude, responsavel.longitude]);
 
   const pedirRecomendacaoIA = async () => {
     setErroRecomendacao(null);
     setPedindoRecomendacao(true);
     try {
       const resultado = await recomendarUnidadesIA({
-        responsavelId,
+        responsavelId: responsavel.id,
         criancaId: crianca.id,
         anoProcesso: ANO_PROCESSO,
       });
@@ -315,6 +349,21 @@ function EtapaEscolhaUnidades({
       setPedindoRecomendacao(false);
     }
   };
+
+  const alternarExpandida = (unidadeId: string) => {
+    setExpandidas((atual) =>
+      atual.includes(unidadeId) ? atual.filter((id) => id !== unidadeId) : [...atual, unidadeId]
+    );
+  };
+
+  // Recomendadas pela IA sobem pro topo (mantendo a ordenação por proximidade
+  // dentro de cada grupo) — todas as unidades continuam na lista, só reordena.
+  const candidatasOrdenadas = [...candidatas].sort((a, b) => {
+    const aRecomendada = recomendacaoIA?.recomendacoes.some((r) => r.unidadeId === a.unidadeId) ?? false;
+    const bRecomendada = recomendacaoIA?.recomendacoes.some((r) => r.unidadeId === b.unidadeId) ?? false;
+    if (aRecomendada !== bRecomendada) return aRecomendada ? -1 : 1;
+    return 0;
+  });
 
   const alternarSelecao = (unidadeId: string) => {
     setSelecionadas((atual) => {
@@ -352,7 +401,7 @@ function EtapaEscolhaUnidades({
   return (
     <Stack spacing={2.5}>
       <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-        Escolha até 5 unidades, em ordem de preferência. Ordenamos por proximidade do seu bairro ({bairroResponsavel}
+        Escolha até 5 unidades, em ordem de preferência. Ordenamos por proximidade do seu bairro ({responsavel.bairro}
         ) e disponibilidade de vaga.
       </Typography>
 
@@ -400,23 +449,48 @@ function EtapaEscolhaUnidades({
       </Card>
 
       <Grid container spacing={1.5}>
-        {candidatas.map((c, index) => {
+        {candidatasOrdenadas.map((c) => {
           const selecionadaIndex = selecionadas.indexOf(c.unidadeId);
           const selecionada = selecionadaIndex >= 0;
           const recomendacao = recomendacaoIA?.recomendacoes.find((r) => r.unidadeId === c.unidadeId);
+          const expandida = expandidas.includes(c.unidadeId);
+
+          const marcadores: EnderecoMapMarcador[] = [];
+          if (c.latitude != null && c.longitude != null) {
+            marcadores.push({
+              id: `unidade-${c.unidadeId}`,
+              label: c.nome,
+              latitude: c.latitude,
+              longitude: c.longitude,
+              tipo: 'unidade',
+            });
+          }
+          if (responsavel.latitude != null && responsavel.longitude != null) {
+            marcadores.push({
+              id: `moradia-${responsavel.id}`,
+              label: `Moradia — ${responsavel.logradouro ?? responsavel.bairro}`,
+              latitude: responsavel.latitude,
+              longitude: responsavel.longitude,
+              tipo: 'moradia',
+            });
+          }
+
           return (
             <Grid size={12} key={c.unidadeId}>
               <Card
                 variant="outlined"
                 sx={{
-                  p: 2,
-                  cursor: 'pointer',
                   borderColor: selecionada ? 'primary.main' : undefined,
                   bgcolor: selecionada ? 'primary.lighter' : undefined,
                 }}
-                onClick={() => alternarSelecao(c.unidadeId)}
               >
-                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Stack
+                  direction="row"
+                  justifyContent="space-between"
+                  alignItems="center"
+                  sx={{ p: 2, cursor: 'pointer' }}
+                  onClick={() => alternarSelecao(c.unidadeId)}
+                >
                   <Stack sx={{ flex: 1 }}>
                     <Stack direction="row" spacing={1} alignItems="center">
                       <Typography variant="subtitle2">
@@ -437,7 +511,26 @@ function EtapaEscolhaUnidades({
                       </Typography>
                     )}
                   </Stack>
+
+                  <IconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      alternarExpandida(c.unidadeId);
+                    }}
+                  >
+                    <Iconify
+                      icon="eva:arrow-ios-downward-fill"
+                      sx={{ transform: expandida ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}
+                    />
+                  </IconButton>
                 </Stack>
+
+                <Collapse in={expandida} unmountOnExit>
+                  <Box sx={{ px: 2, pb: 2 }}>
+                    <EnderecoMap marcadores={marcadores} />
+                  </Box>
+                </Collapse>
               </Card>
             </Grid>
           );

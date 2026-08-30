@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { db } from '../../db/client';
 import { badRequest, notFound } from '../../lib/errors';
 import { isValidCpf, normalizeCpf } from '../../lib/cpf';
+import { geocodeEndereco } from '../../lib/geocode';
 
 export interface Responsavel {
   id: string;
@@ -38,7 +39,7 @@ export interface CreateResponsavelInput {
  * R1: validação real de CPF contra a Receita Federal fica como stub — aqui só
  * valida formato/dígito verificador.
  */
-export function upsertResponsavel(input: CreateResponsavelInput): Responsavel {
+export async function upsertResponsavel(input: CreateResponsavelInput): Promise<Responsavel> {
   const cpf = normalizeCpf(input.cpf);
   if (!isValidCpf(cpf)) {
     throw badRequest('CPF_INVALIDO', 'CPF inválido (formato ou dígito verificador)');
@@ -47,10 +48,17 @@ export function upsertResponsavel(input: CreateResponsavelInput): Responsavel {
   const existing = db.query('SELECT * FROM responsavel WHERE cpf = $cpf').get({ $cpf: cpf }) as Responsavel | null;
   if (existing) return existing;
 
+  const coordenadas = await geocodeEndereco({
+    logradouro: input.logradouro,
+    numero: input.numero,
+    bairro: input.bairro,
+    cep: input.cep,
+  });
+
   const id = randomUUID();
   db.query(
-    `INSERT INTO responsavel (id, cpf, nome, data_nascimento, telefone, email, cep, bairro, logradouro, numero)
-     VALUES ($id, $cpf, $nome, $dataNascimento, $telefone, $email, $cep, $bairro, $logradouro, $numero)`
+    `INSERT INTO responsavel (id, cpf, nome, data_nascimento, telefone, email, cep, bairro, logradouro, numero, latitude, longitude)
+     VALUES ($id, $cpf, $nome, $dataNascimento, $telefone, $email, $cep, $bairro, $logradouro, $numero, $latitude, $longitude)`
   ).run({
     $id: id,
     $cpf: cpf,
@@ -62,6 +70,8 @@ export function upsertResponsavel(input: CreateResponsavelInput): Responsavel {
     $bairro: input.bairro,
     $logradouro: input.logradouro ?? null,
     $numero: input.numero ?? null,
+    $latitude: coordenadas?.latitude ?? null,
+    $longitude: coordenadas?.longitude ?? null,
   });
 
   return getResponsavelByCpf(cpf);
@@ -80,8 +90,10 @@ export function getResponsavelById(id: string): Responsavel {
   return row;
 }
 
-export function updateResponsavel(id: string, patch: Partial<CreateResponsavelInput>): Responsavel {
-  getResponsavelById(id);
+const CAMPOS_ENDERECO = ['cep', 'bairro', 'logradouro', 'numero'] as const;
+
+export async function updateResponsavel(id: string, patch: Partial<CreateResponsavelInput>): Promise<Responsavel> {
+  const atual = getResponsavelById(id);
 
   const fieldMap: Record<string, string> = {
     nome: 'nome',
@@ -101,6 +113,19 @@ export function updateResponsavel(id: string, patch: Partial<CreateResponsavelIn
       sets.push(`${column} = $${key}`);
       params[`$${key}`] = (patch as Record<string, unknown>)[key];
     }
+  }
+
+  const enderecoMudou = CAMPOS_ENDERECO.some((campo) => campo in patch);
+  if (enderecoMudou) {
+    const coordenadas = await geocodeEndereco({
+      logradouro: patch.logradouro ?? atual.logradouro,
+      numero: patch.numero ?? atual.numero,
+      bairro: patch.bairro ?? atual.bairro,
+      cep: patch.cep ?? atual.cep,
+    });
+    sets.push('latitude = $latitude', 'longitude = $longitude');
+    params.$latitude = coordenadas?.latitude ?? null;
+    params.$longitude = coordenadas?.longitude ?? null;
   }
 
   if (sets.length > 0) {
