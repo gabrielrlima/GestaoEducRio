@@ -140,6 +140,7 @@ export default function PortalPage() {
             sx={{
               p: isMobile ? 1 : 2,
               width: { md: 220 },
+              flexShrink: { md: 0 },
               bgcolor: 'background.neutral',
               borderRight: { md: `1px solid ${theme.vars.palette.divider}` },
               borderBottom: { xs: `1px solid ${theme.vars.palette.divider}`, md: 'none' },
@@ -168,7 +169,7 @@ export default function PortalPage() {
             ))}
           </Tabs>
 
-          <Box sx={{ p: { xs: 3, md: 4 }, flex: '1 1 auto' }}>
+          <Box sx={{ p: { xs: 3, md: 4 }, flex: '1 1 auto', minWidth: 0 }}>
             {etapa === 0 && (
               <EtapaDadosPessoais responsavelId={responsavelId} onConcluido={() => irParaEtapa(1)} />
             )}
