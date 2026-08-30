@@ -112,23 +112,26 @@ export default function PortalPage() {
 // ----------------------------------------------------------------------
 
 function EtapaLogin({ onLogado }: { onLogado: (responsavelId: string, bairro: string) => void }) {
-  const [modo, setModo] = useState<'login' | 'cadastro'>('login');
   const [cpf, setCpf] = useState('');
   const [dataNascimento, setDataNascimento] = useState('');
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [bairro, setBairro] = useState('');
+  const [precisaCadastrar, setPrecisaCadastrar] = useState(false);
   const [codigoSolicitado, setCodigoSolicitado] = useState(false);
   const [codigo, setCodigo] = useState('');
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [infoEnvio, setInfoEnvio] = useState<string | null>(null);
 
-  const solicitarCodigo = async () => {
+  // Fluxo automático: tenta o login com CPF + data de nascimento; se não
+  // encontrar cadastro, revela os campos extras pra completar o cadastro na
+  // mesma tela, sem a família precisar dizer se "já tem conta" ou não.
+  const continuar = async () => {
     setErro(null);
     setLoading(true);
     try {
-      if (modo === 'cadastro') {
+      if (precisaCadastrar) {
         await cadastrarResponsavel({ cpf, nome, dataNascimento, email, bairro });
       }
       const resultado = await solicitarCodigoResponsavel(cpf, dataNascimento);
@@ -139,7 +142,13 @@ function EtapaLogin({ onLogado }: { onLogado: (responsavelId: string, bairro: st
       );
       setCodigoSolicitado(true);
     } catch (e) {
-      setErro((e as Error).message);
+      const mensagem = (e as Error).message;
+      if (!precisaCadastrar && /não conferem|não encontrado/i.test(mensagem)) {
+        setPrecisaCadastrar(true);
+        setErro(null);
+      } else {
+        setErro(mensagem);
+      }
     } finally {
       setLoading(false);
     }
@@ -174,20 +183,10 @@ function EtapaLogin({ onLogado }: { onLogado: (responsavelId: string, bairro: st
 
   return (
     <Stack spacing={2.5}>
-      <Stack direction="row" spacing={1}>
-        <Chip
-          label="Já tenho cadastro"
-          color={modo === 'login' ? 'primary' : 'default'}
-          onClick={() => setModo('login')}
-        />
-        <Chip
-          label="Primeira vez"
-          color={modo === 'cadastro' ? 'primary' : 'default'}
-          onClick={() => setModo('cadastro')}
-        />
-      </Stack>
-
       {erro && <Alert severity="error">{erro}</Alert>}
+      {precisaCadastrar && (
+        <Alert severity="info">Não encontramos seu cadastro — complete os dados abaixo pra continuar.</Alert>
+      )}
 
       <TextField label="CPF" value={cpf} onChange={(e) => setCpf(e.target.value)} placeholder="Somente números" />
       <TextField
@@ -198,7 +197,7 @@ function EtapaLogin({ onLogado }: { onLogado: (responsavelId: string, bairro: st
         InputLabelProps={{ shrink: true }}
       />
 
-      {modo === 'cadastro' && (
+      {precisaCadastrar && (
         <>
           <TextField label="Nome completo" value={nome} onChange={(e) => setNome(e.target.value)} />
           <TextField label="E-mail" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -206,8 +205,8 @@ function EtapaLogin({ onLogado }: { onLogado: (responsavelId: string, bairro: st
         </>
       )}
 
-      <LoadingButton variant="contained" size="large" loading={loading} onClick={solicitarCodigo}>
-        {modo === 'cadastro' ? 'Cadastrar e receber código' : 'Enviar código de acesso'}
+      <LoadingButton variant="contained" size="large" loading={loading} onClick={continuar}>
+        {precisaCadastrar ? 'Cadastrar e receber código' : 'Continuar'}
       </LoadingButton>
     </Stack>
   );
