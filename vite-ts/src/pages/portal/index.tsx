@@ -13,11 +13,13 @@ import { useTheme } from '@mui/material/styles';
 import Container from '@mui/material/Container';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import Radio from '@mui/material/Radio';
 import LoadingButton from '@mui/lab/LoadingButton';
-import ToggleButton from '@mui/material/ToggleButton';
+import RadioGroup from '@mui/material/RadioGroup';
+import FormControl from '@mui/material/FormControl';
 import useMediaQuery from '@mui/material/useMediaQuery';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import CircularProgress from '@mui/material/CircularProgress';
-import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 
 import { limparCep, buscarEnderecoPorCep } from 'src/lib/viacep';
 import {
@@ -654,22 +656,16 @@ function FormularioCrianca({
         onChange={(e) => onChange({ ...dados, dataNascimento: e.target.value })}
         InputLabelProps={{ shrink: true }}
       />
-      <ToggleButtonGroup
-        value={dados.sexo || null}
-        exclusive
-        fullWidth
-        onChange={(_e, novoValor: 'M' | 'F' | null) => onChange({ ...dados, sexo: novoValor ?? '' })}
-        sx={{
-          '& .MuiToggleButton-root.Mui-selected': {
-            bgcolor: 'primary.main',
-            color: 'primary.contrastText',
-            '&:hover': { bgcolor: 'primary.dark' },
-          },
-        }}
-      >
-        <ToggleButton value="M">Menino</ToggleButton>
-        <ToggleButton value="F">Menina</ToggleButton>
-      </ToggleButtonGroup>
+      <FormControl>
+        <RadioGroup
+          row
+          value={dados.sexo || ''}
+          onChange={(e) => onChange({ ...dados, sexo: e.target.value as 'M' | 'F' })}
+        >
+          <FormControlLabel value="M" control={<Radio />} label="Menino" />
+          <FormControlLabel value="F" control={<Radio />} label="Menina" />
+        </RadioGroup>
+      </FormControl>
     </Stack>
   );
 }
