@@ -1,9 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 
 import Box from '@mui/material/Box';
 import Tab from '@mui/material/Tab';
 import Card from '@mui/material/Card';
-import Chip from '@mui/material/Chip';
 import Grid from '@mui/material/Grid';
 import Tabs from '@mui/material/Tabs';
 import Alert from '@mui/material/Alert';
@@ -17,9 +16,11 @@ import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
 import LoadingButton from '@mui/lab/LoadingButton';
 import useMediaQuery from '@mui/material/useMediaQuery';
+import Chip, { type ChipProps } from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 
 import { limparCep, buscarEnderecoPorCep } from 'src/lib/viacep';
+import { listarEnderecos, type EnderecoResponsavel } from 'src/lib/creche-enderecos';
 import {
   getToken,
   type Turno,
@@ -34,6 +35,7 @@ import {
   cadastrarResponsavel,
   atualizarResponsavel,
   recomendarUnidadesIA,
+  type BadgeRecomendacao,
   type StatusConsolidado,
   solicitarCodigoResponsavel,
   verificarCodigoResponsavel,
@@ -530,6 +532,38 @@ function EtapaCadastroCrianca({
 
 // ----------------------------------------------------------------------
 
+/**
+ * Cor semântica de cada badge do agente: verde pro que fala de chance/vaga, azul pro que
+ * fala de distância, roxo pro badge de compromisso entre os dois. Badge desconhecido
+ * (backend mais novo que o front) cai no `default` em vez de sumir.
+ */
+const COR_DO_BADGE: Record<BadgeRecomendacao, ChipProps['color']> = {
+  'Alta chance de vaga': 'success',
+  'Muitas vagas abertas': 'success',
+  'Mais perto de casa': 'primary',
+  'Mais perto do trabalho': 'info',
+  'No caminho para o trabalho': 'info',
+  'Perto do endereço alternativo': 'info',
+  'Melhor equilíbrio': 'secondary',
+};
+
+function corDoBadge(badge: string): ChipProps['color'] {
+  return COR_DO_BADGE[badge as BadgeRecomendacao] ?? 'default';
+}
+
+const ROTULO_PADRAO: Record<EnderecoResponsavel['tipo'], string> = {
+  moradia: 'Moradia',
+  trabalho: 'Trabalho',
+  alternativo: 'Endereço alternativo',
+};
+
+/** Texto do popup do pino: rótulo dado pela família + rua (ou bairro, se não houver rua). */
+function labelDoEndereco(endereco: EnderecoResponsavel): string {
+  const nome = endereco.rotulo?.trim() || ROTULO_PADRAO[endereco.tipo];
+  const detalhe = endereco.logradouro?.trim() || endereco.bairro?.trim();
+  return detalhe ? `${nome} — ${detalhe}` : nome;
+}
+
 function EtapaEscolhaUnidades({
   crianca,
   responsavelId,
@@ -542,11 +576,7 @@ function EtapaEscolhaUnidades({
   onConcluida: () => void;
 }) {
   const [candidatas, setCandidatas] = useState<UnidadeProxima[]>([]);
-  const [moradia, setMoradia] = useState<{ label: string; latitude: number | null; longitude: number | null }>({
-    label: bairroResponsavel,
-    latitude: null,
-    longitude: null,
-  });
+  const [enderecos, setEnderecos] = useState<EnderecoResponsavel[]>([]);
   const [selecionadas, setSelecionadas] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [enviando, setEnviando] = useState(false);
@@ -560,9 +590,11 @@ function EtapaEscolhaUnidades({
 
   useEffect(() => {
     setLoading(true);
-    getResponsavel(responsavelId)
-      .then((r) => {
-        setMoradia({ label: r.logradouro ?? r.bairro, latitude: r.latitude, longitude: r.longitude });
+    // Os endereços extras (trabalho/alternativo) são enfeite do mapa: se a chamada falhar,
+    // a lista de unidades ainda precisa carregar — daí o catch isolado.
+    Promise.all([getResponsavel(responsavelId), listarEnderecos(responsavelId).catch(() => [])])
+      .then(([r, enderecosCadastrados]) => {
+        setEnderecos(enderecosCadastrados);
         return unidadesProximas({
           bairro: r.bairro,
           lat: r.latitude ?? undefined,
@@ -573,6 +605,21 @@ function EtapaEscolhaUnidades({
       .then(setCandidatas)
       .finally(() => setLoading(false));
   }, [responsavelId]);
+
+  // Pinos dos endereços da família: iguais em todos os cards, então calcula uma vez só.
+  const marcadoresEnderecos = useMemo<EnderecoMapMarcador[]>(
+    () =>
+      enderecos
+        .filter((e) => e.latitude != null && e.longitude != null)
+        .map((e) => ({
+          id: `endereco-${e.id}`,
+          label: labelDoEndereco(e),
+          latitude: e.latitude as number,
+          longitude: e.longitude as number,
+          tipo: e.tipo,
+        })),
+    [enderecos]
+  );
 
   const pedirRecomendacaoIA = async () => {
     setErroRecomendacao(null);
@@ -678,6 +725,13 @@ function EtapaEscolhaUnidades({
                   label={recomendacaoIA.fonte === 'ia' ? 'gerado pela IA' : 'fallback determinístico'}
                 />
               </Alert>
+
+              {recomendacaoIA.alertas?.map((alerta, i) => (
+                <Alert key={i} severity="warning">
+                  {alerta}
+                </Alert>
+              ))}
+
               <Button
                 size="small"
                 onClick={() => setSelecionadas(recomendacaoIA.recomendacoes.slice(0, 5).map((r) => r.unidadeId))}
@@ -696,25 +750,22 @@ function EtapaEscolhaUnidades({
           const recomendacao = recomendacaoIA?.recomendacoes.find((r) => r.unidadeId === c.unidadeId);
           const expandida = expandidas.includes(c.unidadeId);
 
-          const marcadores: EnderecoMapMarcador[] = [];
-          if (c.latitude != null && c.longitude != null) {
-            marcadores.push({
-              id: `unidade-${c.unidadeId}`,
-              label: c.nome,
-              latitude: c.latitude,
-              longitude: c.longitude,
-              tipo: 'unidade',
-            });
-          }
-          if (moradia.latitude != null && moradia.longitude != null) {
-            marcadores.push({
-              id: `moradia-${responsavelId}`,
-              label: `Moradia — ${moradia.label}`,
-              latitude: moradia.latitude,
-              longitude: moradia.longitude,
-              tipo: 'moradia',
-            });
-          }
+          // A unidade vem primeiro: o EnderecoMap usa o primeiro marcador como centro
+          // inicial, antes do fitBounds enquadrar tudo (pinos + traçado casa→trabalho).
+          const marcadores: EnderecoMapMarcador[] = [
+            ...(c.latitude != null && c.longitude != null
+              ? [
+                  {
+                    id: `unidade-${c.unidadeId}`,
+                    label: c.nome,
+                    latitude: c.latitude,
+                    longitude: c.longitude,
+                    tipo: 'unidade' as const,
+                  },
+                ]
+              : []),
+            ...marcadoresEnderecos,
+          ];
 
           return (
             <Grid size={12} key={c.unidadeId}>
@@ -733,12 +784,19 @@ function EtapaEscolhaUnidades({
                   onClick={() => alternarSelecao(c.unidadeId)}
                 >
                   <Stack sx={{ flex: 1 }}>
-                    <Stack direction="row" spacing={1} alignItems="center">
+                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
                       <Typography variant="subtitle2">
                         {selecionada ? `${selecionadaIndex + 1}º — ` : ''}
                         {c.nome}
                       </Typography>
-                      {recomendacao && <Chip size="small" color="success" label="Recomendada pela IA" />}
+                      {/* O badge é o rótulo informativo (por que ESTA unidade se destaca);
+                          o "Recomendada pela IA" fica em soft pra não competir com ele. */}
+                      {recomendacao?.badge && (
+                        <Chip size="small" color={corDoBadge(recomendacao.badge)} label={recomendacao.badge} />
+                      )}
+                      {recomendacao && (
+                        <Chip size="small" variant="soft" color="success" label="Recomendada pela IA" />
+                      )}
                     </Stack>
                     <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                       {c.bairro}
@@ -746,8 +804,10 @@ function EtapaEscolhaUnidades({
                       {' · '}
                       {c.vagasDisponiveis} vaga(s) disponíveis
                     </Typography>
+                    {/* `porque` agora é um parágrafo de 2-3 frases, não uma linha —
+                        body2 em vez de caption pra ficar legível. */}
                     {recomendacao && (
-                      <Typography variant="caption" sx={{ color: 'success.dark', mt: 0.5 }}>
+                      <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.75 }}>
                         {recomendacao.porque}
                       </Typography>
                     )}

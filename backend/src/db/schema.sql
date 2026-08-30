@@ -55,6 +55,75 @@ CREATE TABLE IF NOT EXISTS responsavel (
   criado_em         TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Endereços adicionais do responsável (moradia é espelhada aqui a partir dos campos de
+-- `responsavel` por compatibilidade; trabalho/alternativo só existem aqui). O agente de
+-- recomendação usa TODOS eles: distância por endereço, desvio de rota casa→trabalho, etc.
+-- Ver backend/src/modules/ia/tools.ts.
+CREATE TABLE IF NOT EXISTS endereco_responsavel (
+  id              TEXT PRIMARY KEY,
+  responsavel_id  TEXT NOT NULL REFERENCES responsavel(id),
+  tipo            TEXT NOT NULL CHECK (tipo IN ('moradia','trabalho','alternativo')),
+  rotulo          TEXT,                 -- livre: "casa da avó", "escritório", ...
+  cep             TEXT,
+  logradouro      TEXT,
+  numero          TEXT,
+  complemento     TEXT,
+  bairro          TEXT,
+  latitude        REAL,
+  longitude       REAL,
+  criado_em       TEXT NOT NULL DEFAULT (datetime('now')),
+  -- 1 moradia e 1 trabalho por responsável; alternativos podem ser vários
+  UNIQUE (responsavel_id, tipo, rotulo)
+);
+
+CREATE INDEX IF NOT EXISTS idx_endereco_responsavel ON endereco_responsavel(responsavel_id);
+
+-- Agregado histórico por unidade × ano × grupamento × turno, derivado da Query A do dataset
+-- oficial (01_QueryA_InscricoesPorAno.csv.gz, 837k linhas / 2021-2025) pelo seed
+-- src/seed/seed-historico.ts. Fonte da "vacância histórica" e da concorrência real.
+CREATE TABLE IF NOT EXISTS unidade_historico (
+  id                     TEXT PRIMARY KEY,
+  unidade_id             TEXT NOT NULL REFERENCES unidade(id),
+  ano                    INTEGER NOT NULL,
+  grupamento             TEXT NOT NULL CHECK (grupamento IN ('Bercario','Maternal I','Maternal II')),
+  turno                  TEXT NOT NULL CHECK (turno IN ('Integral','Parcial')),
+  inscricoes             INTEGER NOT NULL DEFAULT 0,   -- opções escolhidas nessa unidade/grupamento/turno
+  primeira_opcao         INTEGER NOT NULL DEFAULT 0,   -- subconjunto que escolheu a unidade como 1ª opção
+  confirmados            INTEGER NOT NULL DEFAULT 0,   -- situacao = 'Confirmado' (matrícula efetivada)
+  lista_espera           INTEGER NOT NULL DEFAULT 0,
+  selecionados           INTEGER NOT NULL DEFAULT 0,   -- 'Selecionado' + 'Selecionado da lista' + 'Ativo'
+  cancelados_sistema     INTEGER NOT NULL DEFAULT 0,   -- 'Cancelado pelo sistema' (efeito de R8: vaga fantasma)
+  cancelados_confirmacao INTEGER NOT NULL DEFAULT 0,   -- 'Cancelado na confirmacao' (grafia do dataset, sem acento) = vaga que vagou
+  cancelados_outros      INTEGER NOT NULL DEFAULT 0,   -- 'Cancelado' + 'Bloqueada'
+  UNIQUE (unidade_id, ano, grupamento, turno)
+);
+
+CREATE INDEX IF NOT EXISTS idx_unidade_historico_unidade ON unidade_historico(unidade_id, grupamento, turno);
+
+-- Consolidação de `unidade_historico` em métricas por unidade × grupamento × turno, com a
+-- classificação determinística em tercis (baixa/media/alta) dentro da região de referência.
+-- Recalculada inteira pelo seed — não escrever aqui em runtime.
+CREATE TABLE IF NOT EXISTS unidade_disponibilidade (
+  unidade_id                    TEXT NOT NULL REFERENCES unidade(id),
+  grupamento                    TEXT NOT NULL,
+  turno                         TEXT NOT NULL,
+  anos_cobertos                 INTEGER NOT NULL,
+  inscricoes_media              REAL NOT NULL,   -- demanda média por ano
+  confirmados_media             REAL NOT NULL,   -- matrículas efetivadas por ano (proxy de vagas que giram)
+  vacancia_media                REAL NOT NULL,   -- 'Cancelado na confirmacao' médio/ano = vaga ofertada que vagou
+  taxa_oferta                   REAL NOT NULL,   -- (confirmados + cancelados_confirmacao) / inscricoes = chance histórica de ser convocado
+  taxa_absorcao                 REAL NOT NULL,   -- confirmados / inscricoes — convocados que de fato matricularam
+  taxa_vacancia                 REAL NOT NULL,   -- cancelados_confirmacao / (confirmados + cancelados_confirmacao) = vaga ofertada que vagou
+  concorrencia                  REAL,            -- inscricoes / confirmados (candidatos por vaga preenchida); NULL se confirmados = 0
+  indice_disponibilidade        REAL NOT NULL,   -- = taxa_oferta (ver seed-historico.ts para a justificativa)
+  regiao_referencia             TEXT NOT NULL,   -- 'bairro:TIJUCA' ou 'cidade' quando o bairro tem amostra pequena
+  percentil_regiao              REAL NOT NULL,   -- 0-1 dentro da região de referência
+  classe_regiao                 TEXT NOT NULL CHECK (classe_regiao IN ('baixa','media','alta')),
+  percentil_cidade              REAL NOT NULL,
+  classe_cidade                 TEXT NOT NULL CHECK (classe_cidade IN ('baixa','media','alta')),
+  PRIMARY KEY (unidade_id, grupamento, turno)
+);
+
 -- Código de verificação (2FA) enviado por e-mail no login do portal da mãe
 CREATE TABLE IF NOT EXISTS login_codigo (
   id              TEXT PRIMARY KEY,
@@ -162,6 +231,7 @@ CREATE TABLE IF NOT EXISTS ia_recomendacao_item (
   unidade_id       TEXT NOT NULL REFERENCES unidade(id),
   ordem            INTEGER NOT NULL CHECK (ordem BETWEEN 1 AND 5),
   porque           TEXT NOT NULL,
+  badge            TEXT,               -- rótulo curto opcional pro card do portal ("Alta chance de vaga", ...)
   UNIQUE (recomendacao_id, ordem)
 );
 

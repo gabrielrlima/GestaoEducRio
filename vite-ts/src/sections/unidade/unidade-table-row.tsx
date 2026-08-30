@@ -5,8 +5,9 @@ import TableRow from '@mui/material/TableRow';
 import TableCell from '@mui/material/TableCell';
 import ListItemText from '@mui/material/ListItemText';
 
-import { Label } from 'src/components/label';
 import { type Unidade } from 'src/lib/creche-api';
+
+import { Label } from 'src/components/label';
 
 // ----------------------------------------------------------------------
 

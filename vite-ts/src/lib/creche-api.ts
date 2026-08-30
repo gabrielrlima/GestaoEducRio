@@ -143,9 +143,37 @@ export interface StatusConsolidado {
   situacaoConsolidada: 'confirmada' | 'aguardando_confirmacao' | 'em_fila' | 'sem_oferta' | 'sem_inscricao';
 }
 
+/**
+ * Enum fechado de badges definido no backend (`backend/src/modules/ia/tools.ts`, const
+ * BADGES) — o agente só pode escolher um destes, então o front consegue mapear cor por
+ * badge sem risco de receber um rótulo desconhecido. Mesmo assim `badge` é tipado como
+ * `BadgeRecomendacao | string` na resposta: se o backend ganhar um badge novo antes do
+ * front, o Chip renderiza com a cor padrão em vez de quebrar.
+ */
+export const BADGES_RECOMENDACAO = [
+  'Mais perto de casa',
+  'Mais perto do trabalho',
+  'No caminho para o trabalho',
+  'Alta chance de vaga',
+  'Muitas vagas abertas',
+  'Perto do endereço alternativo',
+  'Melhor equilíbrio',
+] as const;
+
+export type BadgeRecomendacao = (typeof BADGES_RECOMENDACAO)[number];
+
+export interface RecomendacaoIAItem {
+  unidadeId: string;
+  /** Parágrafo curto explicando a escolha para esta família, com números reais. */
+  porque: string;
+  badge?: BadgeRecomendacao | string;
+}
+
 export interface RecomendacaoIA {
   resumo: string;
-  recomendacoes: Array<{ unidadeId: string; porque: string }>;
+  recomendacoes: RecomendacaoIAItem[];
+  /** Avisos objetivos (ex.: idade não bate com o grupamento, poucas opções perto). */
+  alertas?: string[];
   fonte: 'ia' | 'fallback';
 }
 
@@ -272,9 +300,11 @@ export async function recomendarUnidadesIA(input: {
   turno?: Turno;
   anoProcesso?: number;
 }) {
-  // O agente roda um loop de tool calls (Anthropic Tool Runner) antes de responder —
-  // pode levar ~15-20s. O timeout do axios (padrão do template) precisa acomodar isso.
-  const { data } = await client.post<RecomendacaoIA>('/ia/recomendar-unidades', input, { timeout: 30_000 });
+  // O agente roda um loop de tool calls (Anthropic Tool Runner) antes de responder — com
+  // as 7 tools, medimos 25-35s ponta a ponta. O timeout aqui precisa ficar ACIMA do
+  // IA_TIMEOUT_MS do backend (40s), senão o axios aborta antes de o backend conseguir
+  // cair no fallback determinístico e a família vê erro em vez de uma lista.
+  const { data } = await client.post<RecomendacaoIA>('/ia/recomendar-unidades', input, { timeout: 55_000 });
   return data;
 }
 

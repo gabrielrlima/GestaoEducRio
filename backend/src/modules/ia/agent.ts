@@ -1,50 +1,82 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { criarFerramentasRecomendacao, type FerramentasContext, type RecomendacaoFinal } from './tools';
+import { PROMPTS, PROMPT_PADRAO, type NomePrompt } from './prompts';
 
 const apiKey = process.env.ANTHROPIC_API_KEY;
 const client = apiKey ? new Anthropic({ apiKey }) : null;
 
-const TIMEOUT_MS = 25000; // loop de várias tool calls (5 tools, até finalizar_recomendacao) mede ~15-20s na prática
+const MODELO = process.env.IA_MODELO ?? 'claude-haiku-4-5';
+const TIMEOUT_MS = Number(process.env.IA_TIMEOUT_MS ?? 40_000);
+const MAX_ITERACOES = 14;
 
-const SYSTEM_PROMPT = `Você é o agente de recomendação de creches do GestaoEducRio (SME Rio de Janeiro).
-Use as tools disponíveis para consultar o cadastro da família, buscar unidades candidatas, calcular
-distâncias e conferir as regras de negócio antes de decidir — nunca responda de memória.
-Baseie-se SOMENTE nos dados retornados pelas tools: nunca invente unidade, distância, vaga ou regra.
-Encerre sempre chamando finalizar_recomendacao com o resultado final, mesmo que seja uma lista menor
-que 5 unidades.`;
+export interface ResultadoAgente {
+  recomendacao: RecomendacaoFinal;
+  /** Telemetria usada pelo harness de avaliação; o endpoint ignora. */
+  toolsChamadas: string[];
+  duracaoMs: number;
+}
 
 /**
- * Roda o agente de recomendação (Tool Runner: buscar_candidatas, calcular_distancia,
- * consultar_cadastro, consultar_regras, finalizar_recomendacao) com timeout curto.
- * Retorna null se a API não estiver configurada, falhar, ou expirar — o chamador
- * (routes.ts) cai no fallback determinístico nesse caso, então o endpoint nunca
- * quebra a demo por causa da IA.
+ * Roda o agente de recomendação (Tool Runner) com timeout curto. Retorna null se a API
+ * não estiver configurada, falhar, ou expirar — o chamador (routes.ts) cai no fallback
+ * determinístico nesse caso, então o endpoint nunca quebra por causa da IA.
  */
-export async function recomendarComAgente(ctx: FerramentasContext): Promise<RecomendacaoFinal | null> {
+export async function recomendarComAgente(
+  ctx: FerramentasContext,
+  opcoes: {
+    prompt?: NomePrompt;
+    modelo?: string;
+    onToolResult?: (nome: string, resultado: string) => void;
+  } = {}
+): Promise<ResultadoAgente | null> {
   if (!client) return null;
 
-  const { tools, getResultadoFinal } = criarFerramentasRecomendacao(ctx);
+  const { tools, getResultadoFinal } = criarFerramentasRecomendacao(ctx, {
+    onToolResult: opcoes.onToolResult,
+  });
+  const toolsChamadas: string[] = [];
+  const inicio = Date.now();
 
   try {
+    const runner = client.beta.messages.toolRunner({
+      model: opcoes.modelo ?? MODELO,
+      max_tokens: 4096,
+      max_iterations: MAX_ITERACOES,
+      system: PROMPTS[opcoes.prompt ?? PROMPT_PADRAO],
+      tools,
+      messages: [
+        {
+          role: 'user',
+          content:
+            'Monte a lista de até 5 unidades de creche para esta família, seguindo as regras de negócio.',
+        },
+      ],
+    });
+
+    // O runner é um async iterator: consumir mensagem a mensagem dá a telemetria de quais
+    // tools o modelo escolheu — é o sinal que o eval usa pra comparar system prompts.
+    const consumir = (async () => {
+      for await (const mensagem of runner) {
+        for (const bloco of mensagem.content) {
+          if (bloco.type === 'tool_use') toolsChamadas.push(bloco.name);
+        }
+      }
+    })();
+
     await Promise.race([
-      client.beta.messages.toolRunner({
-        model: 'claude-haiku-4-5',
-        max_tokens: 2048,
-        system: SYSTEM_PROMPT,
-        tools,
-        messages: [
-          {
-            role: 'user',
-            content: 'Recomende até 5 unidades de creche para esta família, seguindo as regras de negócio.',
-          },
-        ],
-      }),
+      consumir,
       new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), TIMEOUT_MS)),
     ]);
 
-    return getResultadoFinal();
+    const recomendacao = getResultadoFinal();
+    if (!recomendacao) return null;
+
+    return { recomendacao, toolsChamadas, duracaoMs: Date.now() - inicio };
   } catch (error) {
     console.warn('[ia] recomendarComAgente falhou, caindo no fallback:', (error as Error).message);
+    // Timeout no meio do loop ainda pode ter passado por finalizar_recomendacao.
+    const parcial = getResultadoFinal();
+    if (parcial) return { recomendacao: parcial, toolsChamadas, duracaoMs: Date.now() - inicio };
     return null;
   }
 }

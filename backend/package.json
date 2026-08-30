@@ -9,7 +9,9 @@
     "migrate": "bun run src/db/migrate.ts",
     "seed:unidades": "bun run src/seed/seed-unidades.ts",
     "seed:vagas": "bun run src/seed/seed-vagas.ts",
-    "seed": "bun run seed:unidades && bun run seed:vagas"
+    "seed:historico": "bun run src/seed/seed-historico.ts",
+    "seed": "bun run seed:unidades && bun run seed:vagas && bun run seed:historico",
+    "eval:ia": "bun run src/eval/eval-recomendacao.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",
