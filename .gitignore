@@ -25,3 +25,7 @@ yarn-error.log*
 # Editor
 .vscode/
 .idea/
+
+# Dataset oficial clonado (repo externo CIT-SME-RJ/dadoscreche, ~68MB, tem seu próprio .git)
+# Ver docs/desafio/dataset-dicionario.md para instruções de clone/leitura
+data/dadoscreche/
