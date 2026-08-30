@@ -90,7 +90,7 @@ CREATE TABLE IF NOT EXISTS crianca (
   nome_completo     TEXT NOT NULL,
   data_nascimento   TEXT NOT NULL,
   sexo              TEXT CHECK (sexo IN ('M','F')),
-  cpf_crianca       TEXT,
+  cpf_crianca       TEXT NOT NULL,
   criado_em         TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
