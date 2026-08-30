@@ -18,6 +18,16 @@ export interface Responsavel {
   complemento: string | null;
   latitude: number | null;
   longitude: number | null;
+  trabalho_cep: string | null;
+  trabalho_bairro: string | null;
+  trabalho_logradouro: string | null;
+  trabalho_numero: string | null;
+  trabalho_complemento: string | null;
+  alternativo_cep: string | null;
+  alternativo_bairro: string | null;
+  alternativo_logradouro: string | null;
+  alternativo_numero: string | null;
+  alternativo_complemento: string | null;
   nis: string | null;
   bolsa_familia_status: 'sim' | 'nao' | 'nao_consultado';
   bolsa_familia_consultado_em: string | null;
@@ -35,6 +45,16 @@ export interface CreateResponsavelInput {
   logradouro?: string;
   numero?: string;
   complemento?: string;
+  trabalhoCep?: string;
+  trabalhoBairro?: string;
+  trabalhoLogradouro?: string;
+  trabalhoNumero?: string;
+  trabalhoComplemento?: string;
+  alternativoCep?: string;
+  alternativoBairro?: string;
+  alternativoLogradouro?: string;
+  alternativoNumero?: string;
+  alternativoComplemento?: string;
   nis?: string;
 }
 
@@ -134,6 +154,16 @@ export async function updateResponsavel(id: string, patch: Partial<CreateRespons
     logradouro: 'logradouro',
     numero: 'numero',
     complemento: 'complemento',
+    trabalhoCep: 'trabalho_cep',
+    trabalhoBairro: 'trabalho_bairro',
+    trabalhoLogradouro: 'trabalho_logradouro',
+    trabalhoNumero: 'trabalho_numero',
+    trabalhoComplemento: 'trabalho_complemento',
+    alternativoCep: 'alternativo_cep',
+    alternativoBairro: 'alternativo_bairro',
+    alternativoLogradouro: 'alternativo_logradouro',
+    alternativoNumero: 'alternativo_numero',
+    alternativoComplemento: 'alternativo_complemento',
     nis: 'nis',
   };
 
