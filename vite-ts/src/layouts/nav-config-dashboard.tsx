@@ -63,6 +63,16 @@ const ICONS = {
  */
 export const navData: NavSectionProps['data'] = [
   /**
+   * Inscrição Creche
+   */
+  {
+    subheader: 'Inscrição Creche',
+    items: [
+      { title: 'Unidades', path: '/dashboard/creche/unidades', icon: ICONS.folder },
+      { title: 'Painel de Pendências', path: '/dashboard/creche/painel', icon: ICONS.analytics },
+    ],
+  },
+  /**
    * Overview
    */
   {

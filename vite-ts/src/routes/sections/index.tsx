@@ -16,8 +16,26 @@ import { componentsRoutes } from './components';
 
 const HomePage = lazy(() => import('src/pages/home'));
 const Page404 = lazy(() => import('src/pages/error/404'));
+const AdminLoginPage = lazy(() => import('src/pages/admin-login'));
+const PortalPage = lazy(() => import('src/pages/portal'));
 
 export const routesSection: RouteObject[] = [
+  {
+    path: '/admin-login',
+    element: (
+      <Suspense fallback={<SplashScreen />}>
+        <AdminLoginPage />
+      </Suspense>
+    ),
+  },
+  {
+    path: '/portal',
+    element: (
+      <Suspense fallback={<SplashScreen />}>
+        <PortalPage />
+      </Suspense>
+    ),
+  },
   {
     path: '/',
     /**

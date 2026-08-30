@@ -18,6 +18,10 @@ import { usePathname } from '../hooks';
 
 // Overview
 const IndexPage = lazy(() => import('src/pages/dashboard'));
+// Creche (Inscrição e Classificação)
+const CrecheUnidadesListPage = lazy(() => import('src/pages/dashboard/creche/unidades-list'));
+const CrecheUnidadeDetailPage = lazy(() => import('src/pages/dashboard/creche/unidade-detail'));
+const CrechePainelPage = lazy(() => import('src/pages/dashboard/creche/painel'));
 const OverviewEcommercePage = lazy(() => import('src/pages/dashboard/ecommerce'));
 const OverviewAnalyticsPage = lazy(() => import('src/pages/dashboard/analytics'));
 const OverviewBankingPage = lazy(() => import('src/pages/dashboard/banking'));
@@ -111,6 +115,15 @@ export const dashboardRoutes: RouteObject[] = [
     element: CONFIG.auth.skip ? dashboardLayout() : <AuthGuard>{dashboardLayout()}</AuthGuard>,
     children: [
       { index: true, element: <IndexPage /> },
+      {
+        path: 'creche',
+        children: [
+          { index: true, element: <CrecheUnidadesListPage /> },
+          { path: 'unidades', element: <CrecheUnidadesListPage /> },
+          { path: 'unidades/:id', element: <CrecheUnidadeDetailPage /> },
+          { path: 'painel', element: <CrechePainelPage /> },
+        ],
+      },
       { path: 'ecommerce', element: <OverviewEcommercePage /> },
       { path: 'analytics', element: <OverviewAnalyticsPage /> },
       { path: 'banking', element: <OverviewBankingPage /> },
