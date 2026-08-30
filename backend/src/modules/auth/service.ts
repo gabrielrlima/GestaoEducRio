@@ -37,8 +37,13 @@ export async function solicitarCodigoLogin(cpf: string, dataNascimento: string):
     throw notFound('RESPONSAVEL_NAO_ENCONTRADO', 'CPF ou data de nascimento não conferem com nenhum cadastro');
   }
 
-  const codigo = gerarCodigoOtp();
+  const codigoGerado = gerarCodigoOtp();
   const expiraEm = dataFutura(OTP_VALIDADE_MINUTOS);
+
+  // O código gravado é o que enviarCodigoVerificacao devolve, não o gerado
+  // acima — se o e-mail não sair de verdade, ela devolve o código fixo de
+  // teste, e é esse que precisa bater com o que o usuário vai digitar.
+  const { modo, codigo } = await enviarCodigoVerificacao(responsavel.email, codigoGerado);
 
   db.query(`INSERT INTO login_codigo (id, responsavel_id, codigo, expira_em) VALUES ($id, $responsavelId, $codigo, $expiraEm)`).run({
     $id: randomUUID(),
@@ -47,7 +52,6 @@ export async function solicitarCodigoLogin(cpf: string, dataNascimento: string):
     $expiraEm: expiraEm,
   });
 
-  const { modo } = await enviarCodigoVerificacao(responsavel.email, codigo);
   return { enviado: true, modo };
 }
 

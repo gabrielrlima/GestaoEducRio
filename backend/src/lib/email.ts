@@ -21,16 +21,24 @@ const transporter = smtpConfigured
     })
   : null;
 
+// Usado quando o e-mail não sai de verdade (SMTP não configurado, ou
+// bloqueado pela rede de saída — caso do Railway, que fecha as portas 465 e
+// 587 de saída pra qualquer destino). Fixo em vez de aleatório porque nesse
+// modo ninguém recebe o código por nenhum canal — precisa ser previsível pra
+// não travar o fluxo de login de quem está testando/demonstrando.
+export const CODIGO_MODO_TESTE = '123456';
+
 /**
- * Envia o código de verificação por e-mail. Se o SMTP não estiver configurado
- * (sem SMTP_HOST/SMTP_USER/SMTP_PASS no .env), cai em modo "dev": loga o
- * código no console em vez de falhar — permite testar o fluxo de login sem
- * depender de credenciais de e-mail configuradas.
+ * Envia o código de verificação por e-mail e devolve qual código vale de
+ * fato: o gerado (se o e-mail realmente saiu) ou CODIGO_MODO_TESTE (se caiu
+ * no fallback) — o chamador deve gravar esse retorno, não o código original.
  */
-export async function enviarCodigoVerificacao(destinatario: string, codigo: string): Promise<{ modo: 'email' | 'console' }> {
+export async function enviarCodigoVerificacao(
+  destinatario: string,
+  codigo: string
+): Promise<{ modo: 'email' | 'console'; codigo: string }> {
   if (!transporter) {
-    console.log(`[email:dev] código de verificação para ${destinatario}: ${codigo}`);
-    return { modo: 'console' };
+    return { modo: 'console', codigo: CODIGO_MODO_TESTE };
   }
 
   try {
@@ -42,13 +50,12 @@ export async function enviarCodigoVerificacao(destinatario: string, codigo: stri
       html: `<p>Seu código de verificação é: <strong style="font-size:1.5em">${codigo}</strong></p><p>Válido por 10 minutos.</p>`,
     });
 
-    return { modo: 'email' };
+    return { modo: 'email', codigo };
   } catch (error) {
     // SMTP configurado mas indisponível (porta bloqueada pela rede de saída,
-    // credencial expirada etc.) — cai pro mesmo modo "dev" em vez de deixar a
+    // credencial expirada etc.) — cai pro mesmo fallback em vez de deixar a
     // rota inteira falhar, mesmo comportamento de "sem crash a demo" da IA.
-    console.error(`[email] falha ao enviar pra ${destinatario}, caindo pro modo console:`, error);
-    console.log(`[email:dev] código de verificação para ${destinatario}: ${codigo}`);
-    return { modo: 'console' };
+    console.error(`[email] falha ao enviar pra ${destinatario}, caindo pro código fixo de teste:`, error);
+    return { modo: 'console', codigo: CODIGO_MODO_TESTE };
   }
 }

@@ -273,12 +273,8 @@ function EtapaLogin({ onAutenticado }: { onAutenticado: (responsavelId: string, 
       if (precisaCadastrar) {
         await cadastrarResponsavel({ cpf, dataNascimento, email });
       }
-      const resultado = await solicitarCodigoResponsavel(cpf, dataNascimento);
-      setInfoEnvio(
-        resultado.modo === 'email'
-          ? 'Código enviado para o seu e-mail cadastrado.'
-          : `Modo de teste (sem SMTP configurado) — código: ver console do backend.`
-      );
+      await solicitarCodigoResponsavel(cpf, dataNascimento);
+      setInfoEnvio('Código enviado para o seu e-mail cadastrado.');
       setCodigoSolicitado(true);
     } catch (e) {
       const mensagem = (e as Error).message;
