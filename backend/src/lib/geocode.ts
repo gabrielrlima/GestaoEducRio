@@ -23,6 +23,11 @@ export interface Coordenadas {
 }
 
 function montarQuery(endereco: EnderecoParaGeocodificar): string {
+  // Sem bairro nem logradouro não há sinal de endereço nenhum — geocodificar
+  // só "Rio de Janeiro, RJ, Brazil" devolveria o centro genérico da cidade,
+  // o que é pior que não ter coordenada (falso senso de precisão).
+  if (!endereco.bairro?.trim() && !endereco.logradouro?.trim()) return '';
+
   const partes = [
     [endereco.logradouro, endereco.numero].filter(Boolean).join(', '),
     endereco.bairro,
