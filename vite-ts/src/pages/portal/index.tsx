@@ -368,38 +368,34 @@ function EtapaDadosPessoais({
 
 // ----------------------------------------------------------------------
 
-function EtapaEndereco({
-  responsavelId,
-  onConcluido,
-}: {
-  responsavelId: string;
-  onConcluido: (bairro: string) => void;
-}) {
-  const [carregando, setCarregando] = useState(true);
-  const [cep, setCep] = useState('');
+interface DadosEndereco {
+  cep: string | null;
+  logradouro: string | null;
+  numero: string | null;
+  complemento: string | null;
+  bairro: string | null;
+}
+
+/** Estado + lógica (autofill por CEP) de um bloco de endereço — reusado pro residencial, trabalho e alternativo. */
+function useCamposEndereco() {
+  const [cep, setCepRaw] = useState('');
   const [logradouro, setLogradouro] = useState('');
   const [numero, setNumero] = useState('');
   const [complemento, setComplemento] = useState('');
   const [bairro, setBairro] = useState('');
   const [buscandoCep, setBuscandoCep] = useState(false);
   const [cepNaoEncontrado, setCepNaoEncontrado] = useState(false);
-  const [salvando, setSalvando] = useState(false);
-  const [erro, setErro] = useState<string | null>(null);
 
-  useEffect(() => {
-    getResponsavel(responsavelId)
-      .then((r) => {
-        setCep(r.cep ?? '');
-        setLogradouro(r.logradouro ?? '');
-        setNumero(r.numero ?? '');
-        setComplemento(r.complemento ?? '');
-        setBairro(r.bairro === 'Não informado' ? '' : r.bairro);
-      })
-      .finally(() => setCarregando(false));
-  }, [responsavelId]);
+  const hidratar = (dados: DadosEndereco) => {
+    setCepRaw(dados.cep ?? '');
+    setLogradouro(dados.logradouro ?? '');
+    setNumero(dados.numero ?? '');
+    setComplemento(dados.complemento ?? '');
+    setBairro(dados.bairro && dados.bairro !== 'Não informado' ? dados.bairro : '');
+  };
 
-  const handleCepChange = async (valor: string) => {
-    setCep(valor);
+  const setCep = async (valor: string) => {
+    setCepRaw(valor);
     setCepNaoEncontrado(false);
     if (limparCep(valor).length !== 8) return;
 
@@ -417,22 +413,136 @@ function EtapaEndereco({
     }
   };
 
+  return {
+    cep,
+    logradouro,
+    numero,
+    complemento,
+    bairro,
+    buscandoCep,
+    cepNaoEncontrado,
+    setCep,
+    setLogradouro,
+    setNumero,
+    setComplemento,
+    setBairro,
+    hidratar,
+    preenchido: bairro.trim().length > 0,
+    payload: () => ({
+      cep: limparCep(cep) || undefined,
+      logradouro: logradouro || undefined,
+      numero: numero || undefined,
+      complemento: complemento || undefined,
+      bairro: bairro || undefined,
+    }),
+  };
+}
+
+type CamposEndereco = ReturnType<typeof useCamposEndereco>;
+
+function BlocoEndereco({ campos, tituloBairro = 'Bairro' }: { campos: CamposEndereco; tituloBairro?: string }) {
+  return (
+    <Stack spacing={2}>
+      {campos.cepNaoEncontrado && (
+        <Alert severity="warning">CEP não encontrado — preencha o endereço manualmente abaixo.</Alert>
+      )}
+      <TextField
+        label="CEP"
+        value={campos.cep}
+        onChange={(e) => campos.setCep(e.target.value)}
+        placeholder="Somente números"
+        slotProps={{ input: { endAdornment: campos.buscandoCep ? <CircularProgress size={18} /> : undefined } }}
+      />
+      <TextField label="Logradouro" value={campos.logradouro} onChange={(e) => campos.setLogradouro(e.target.value)} />
+      <Stack direction="row" spacing={2}>
+        <TextField label="Número" value={campos.numero} onChange={(e) => campos.setNumero(e.target.value)} sx={{ flex: 1 }} />
+        <TextField
+          label="Complemento"
+          value={campos.complemento}
+          onChange={(e) => campos.setComplemento(e.target.value)}
+          sx={{ flex: 2 }}
+        />
+      </Stack>
+      <TextField label={tituloBairro} value={campos.bairro} onChange={(e) => campos.setBairro(e.target.value)} />
+    </Stack>
+  );
+}
+
+function EtapaEndereco({
+  responsavelId,
+  onConcluido,
+}: {
+  responsavelId: string;
+  onConcluido: (bairro: string) => void;
+}) {
+  const [carregando, setCarregando] = useState(true);
+  const residencial = useCamposEndereco();
+  const trabalho = useCamposEndereco();
+  const alternativo = useCamposEndereco();
+  const [mostrarTrabalho, setMostrarTrabalho] = useState(false);
+  const [mostrarAlternativo, setMostrarAlternativo] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  useEffect(() => {
+    getResponsavel(responsavelId)
+      .then((r) => {
+        residencial.hidratar({ cep: r.cep, logradouro: r.logradouro, numero: r.numero, complemento: r.complemento, bairro: r.bairro });
+        trabalho.hidratar({
+          cep: r.trabalho_cep,
+          logradouro: r.trabalho_logradouro,
+          numero: r.trabalho_numero,
+          complemento: r.trabalho_complemento,
+          bairro: r.trabalho_bairro,
+        });
+        alternativo.hidratar({
+          cep: r.alternativo_cep,
+          logradouro: r.alternativo_logradouro,
+          numero: r.alternativo_numero,
+          complemento: r.alternativo_complemento,
+          bairro: r.alternativo_bairro,
+        });
+        if (r.trabalho_bairro) setMostrarTrabalho(true);
+        if (r.alternativo_bairro) setMostrarAlternativo(true);
+      })
+      .finally(() => setCarregando(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [responsavelId]);
+
   const confirmar = async () => {
     setErro(null);
-    if (!bairro.trim()) {
-      setErro('Informe ao menos o bairro pra continuar.');
+    if (!residencial.bairro.trim()) {
+      setErro('Informe ao menos o bairro do endereço residencial pra continuar.');
       return;
     }
     setSalvando(true);
     try {
+      const residencialPayload = residencial.payload();
+      const trabalhoPayload = mostrarTrabalho && trabalho.preenchido ? trabalho.payload() : null;
+      const alternativoPayload = mostrarAlternativo && alternativo.preenchido ? alternativo.payload() : null;
+
       await atualizarResponsavel(responsavelId, {
-        bairro,
-        cep: limparCep(cep) || undefined,
-        logradouro: logradouro || undefined,
-        numero: numero || undefined,
-        complemento: complemento || undefined,
+        bairro: residencialPayload.bairro,
+        cep: residencialPayload.cep,
+        logradouro: residencialPayload.logradouro,
+        numero: residencialPayload.numero,
+        complemento: residencialPayload.complemento,
+        ...(trabalhoPayload && {
+          trabalhoBairro: trabalhoPayload.bairro,
+          trabalhoCep: trabalhoPayload.cep,
+          trabalhoLogradouro: trabalhoPayload.logradouro,
+          trabalhoNumero: trabalhoPayload.numero,
+          trabalhoComplemento: trabalhoPayload.complemento,
+        }),
+        ...(alternativoPayload && {
+          alternativoBairro: alternativoPayload.bairro,
+          alternativoCep: alternativoPayload.cep,
+          alternativoLogradouro: alternativoPayload.logradouro,
+          alternativoNumero: alternativoPayload.numero,
+          alternativoComplemento: alternativoPayload.complemento,
+        }),
       });
-      onConcluido(bairro);
+      onConcluido(residencial.bairro);
     } catch (e) {
       setErro((e as Error).message);
     } finally {
@@ -443,34 +553,45 @@ function EtapaEndereco({
   if (carregando) return <Typography>Carregando seus dados…</Typography>;
 
   return (
-    <Stack spacing={2.5}>
+    <Stack spacing={3}>
       <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-        Seu endereço define quais creches aparecem como mais próximas na próxima etapa.
+        Seu endereço residencial define quais creches aparecem como mais próximas. Trabalho e alternativo são
+        opcionais — úteis se o dia a dia da criança acontece perto de outro endereço.
       </Typography>
 
       {erro && <Alert severity="error">{erro}</Alert>}
-      {cepNaoEncontrado && (
-        <Alert severity="warning">CEP não encontrado — preencha o endereço manualmente abaixo.</Alert>
-      )}
 
-      <TextField
-        label="CEP"
-        value={cep}
-        onChange={(e) => handleCepChange(e.target.value)}
-        placeholder="Somente números"
-        slotProps={{ input: { endAdornment: buscandoCep ? <CircularProgress size={18} /> : undefined } }}
-      />
-      <TextField label="Logradouro" value={logradouro} onChange={(e) => setLogradouro(e.target.value)} />
-      <Stack direction="row" spacing={2}>
-        <TextField label="Número" value={numero} onChange={(e) => setNumero(e.target.value)} sx={{ flex: 1 }} />
-        <TextField
-          label="Complemento"
-          value={complemento}
-          onChange={(e) => setComplemento(e.target.value)}
-          sx={{ flex: 2 }}
-        />
+      <Stack spacing={1.5}>
+        <Typography variant="subtitle2">Endereço residencial</Typography>
+        <BlocoEndereco campos={residencial} />
       </Stack>
-      <TextField label="Bairro" value={bairro} onChange={(e) => setBairro(e.target.value)} />
+
+      <Stack spacing={1.5}>
+        <Stack direction="row" alignItems="center" justifyContent="space-between">
+          <Typography variant="subtitle2">Endereço de trabalho (opcional)</Typography>
+          <Button size="small" onClick={() => setMostrarTrabalho((v) => !v)}>
+            {mostrarTrabalho ? 'Remover' : 'Adicionar'}
+          </Button>
+        </Stack>
+        {mostrarTrabalho && <BlocoEndereco campos={trabalho} />}
+      </Stack>
+
+      <Stack spacing={1.5}>
+        <Stack direction="row" alignItems="center" justifyContent="space-between">
+          <Typography variant="subtitle2">Endereço alternativo (opcional)</Typography>
+          <Button size="small" onClick={() => setMostrarAlternativo((v) => !v)}>
+            {mostrarAlternativo ? 'Remover' : 'Adicionar'}
+          </Button>
+        </Stack>
+        {mostrarAlternativo && (
+          <>
+            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+              Ex.: casa de um familiar, se a criança passa parte da semana lá.
+            </Typography>
+            <BlocoEndereco campos={alternativo} />
+          </>
+        )}
+      </Stack>
 
       <LoadingButton variant="contained" size="large" loading={salvando} onClick={confirmar}>
         Continuar

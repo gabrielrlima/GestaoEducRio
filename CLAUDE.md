@@ -14,6 +14,8 @@ Registrar aqui assim que forem tomadas (não deixar só no chat):
 - **Runtime do pipeline de dados**: TypeScript/Bun nativo — scripts em `backend/src/seed/*.ts`, sem Python.
 - **Destino dos dados processados**: SQLite local (`backend/data/app.db`, via `bun:sqlite`, gitignored — cada um roda `bun run migrate && bun run seed`).
 - **Login**: admin único genérico (usuário/senha em env); mãe (portal) por CPF + data de nascimento + código de 6 dígitos enviado por e-mail (Hostinger SMTP, `contato@keyva.com.br` — cai em modo console/log se `SMTP_PASS` não estiver configurado). Sessão via token opaco em `sessao` (sem JWT).
+- **Portal da mãe — fluxo de cadastro**: login é tela pura (sem etapas, igual ao login admin) — só CPF/data de nascimento e, se for cadastro novo, e-mail (canal do código). Depois de autenticado entra na "área logada" em tabs: Dados pessoais → Endereço → Cadastrar filho(a) → Escolher unidades → Status. `nome`/`bairro` do responsável são opcionais na criação (default "Não informado"), preenchidos via PATCH já logado.
+- **Endereços do responsável**: cadastra até 3 — residencial (obrigatório, é o usado pelo motor de recomendação de creches), trabalho e alternativo (opcionais, campos extra em `responsavel` prefixados `trabalho_`/`alternativo_`, não uma tabela separada). Decidido em 2026-08-30.
 
 ## Fluxo de Git (time)
 
