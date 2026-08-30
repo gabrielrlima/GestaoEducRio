@@ -3,6 +3,21 @@ import type { Theme, Components } from '@mui/material/styles';
 
 import resourcesToBackend from 'i18next-resources-to-backend';
 
+// MUI Core Locales
+import { esES as esESCore, ptBR as ptBRCore } from '@mui/material/locale';
+// MUI Date Pickers Locales
+import { enUS as enUSDate, esES as esESDate, ptBR as ptBRDate } from '@mui/x-date-pickers/locales';
+// MUI Data Grid Locales
+import { enUS as enUSDataGrid, esES as esESDataGrid, ptBR as ptBRDataGrid } from '@mui/x-data-grid/locales';
+
+import enCommon from './langs/en/common.json';
+import enNavbar from './langs/en/navbar.json';
+import enCreche from './langs/en/creche.json';
+import esCommon from './langs/es/common.json';
+import esNavbar from './langs/es/navbar.json';
+import esCreche from './langs/es/creche.json';
+import enMessages from './langs/en/messages.json';
+import esMessages from './langs/es/messages.json';
 // Recursos carregados estaticamente (não via backend assíncrono) — o backend
 // (i18next-resources-to-backend + import() dinâmico) fica registrado abaixo
 // só por compatibilidade, mas na prática nunca chega a popular o store nesta
@@ -11,24 +26,9 @@ import resourcesToBackend from 'i18next-resources-to-backend';
 // estático é síncrono e garante que os textos apareçam sempre, sem depender
 // de timing de carregamento assíncrono.
 import ptBrCommon from './langs/pt-br/common.json';
-import ptBrMessages from './langs/pt-br/messages.json';
 import ptBrNavbar from './langs/pt-br/navbar.json';
 import ptBrCreche from './langs/pt-br/creche.json';
-import enCommon from './langs/en/common.json';
-import enMessages from './langs/en/messages.json';
-import enNavbar from './langs/en/navbar.json';
-import enCreche from './langs/en/creche.json';
-import esCommon from './langs/es/common.json';
-import esMessages from './langs/es/messages.json';
-import esNavbar from './langs/es/navbar.json';
-import esCreche from './langs/es/creche.json';
-
-// MUI Core Locales
-import { esES as esESCore, ptBR as ptBRCore } from '@mui/material/locale';
-// MUI Date Pickers Locales
-import { enUS as enUSDate, esES as esESDate, ptBR as ptBRDate } from '@mui/x-date-pickers/locales';
-// MUI Data Grid Locales
-import { enUS as enUSDataGrid, esES as esESDataGrid, ptBR as ptBRDataGrid } from '@mui/x-data-grid/locales';
+import ptBrMessages from './langs/pt-br/messages.json';
 
 // ----------------------------------------------------------------------
 

@@ -20,14 +20,14 @@ import TableContainer from '@mui/material/TableContainer';
 import { useTranslate } from 'src/locales';
 import { DashboardContent } from 'src/layouts/dashboard';
 import {
-  type Unidade,
-  type VagaConfig,
-  type InscricaoOpcao,
   getUnidade,
-  filaDoProcesso,
-  selecionarOpcao,
-  confirmarOpcao,
+  type Unidade,
   desistirOpcao,
+  filaDoProcesso,
+  confirmarOpcao,
+  type VagaConfig,
+  selecionarOpcao,
+  type InscricaoOpcao,
 } from 'src/lib/creche-api';
 
 // ----------------------------------------------------------------------

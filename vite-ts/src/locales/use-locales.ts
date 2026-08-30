@@ -20,7 +20,7 @@ import { fallbackLng, getCurrentLang } from './locales-config';
 // chamada de tradução do app deve passar por makeSafeT, não usar o `t` cru
 // do react-i18next direto — ver useTranslate abaixo.
 function makeSafeT(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   t: (key: string, options?: any) => unknown,
   i18n: { resolvedLanguage?: string; getResource: (lng: string, ns: string, key: string) => unknown },
   namespaceKey: string

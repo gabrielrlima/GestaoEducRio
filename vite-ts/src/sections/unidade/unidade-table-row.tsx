@@ -6,8 +6,9 @@ import TableCell from '@mui/material/TableCell';
 import ListItemText from '@mui/material/ListItemText';
 
 import { useTranslate } from 'src/locales';
-import { Label } from 'src/components/label';
 import { type Unidade } from 'src/lib/creche-api';
+
+import { Label } from 'src/components/label';
 
 // ----------------------------------------------------------------------
 

@@ -14,26 +14,26 @@ import Container from '@mui/material/Container';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import LoadingButton from '@mui/lab/LoadingButton';
-import CircularProgress from '@mui/material/CircularProgress';
 import useMediaQuery from '@mui/material/useMediaQuery';
+import CircularProgress from '@mui/material/CircularProgress';
 
+import { limparCep, buscarEnderecoPorCep } from 'src/lib/viacep';
 import {
+  getToken,
   type Turno,
   type Crianca,
-  type StatusConsolidado,
-  type UnidadeProxima,
-  getToken,
   getResponsavel,
   criarInscricao,
   cadastrarCrianca,
   getStatusCrianca,
   unidadesProximas,
+  type UnidadeProxima,
   cadastrarResponsavel,
   atualizarResponsavel,
+  type StatusConsolidado,
   solicitarCodigoResponsavel,
   verificarCodigoResponsavel,
 } from 'src/lib/creche-api';
-import { limparCep, buscarEnderecoPorCep } from 'src/lib/viacep';
 
 import { Logo } from 'src/components/logo';
 

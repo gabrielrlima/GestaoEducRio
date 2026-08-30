@@ -1,6 +1,7 @@
 import type { NavSectionProps } from 'src/components/nav-section';
 
 import { useTranslate } from 'src/locales';
+
 import { Iconify } from 'src/components/iconify';
 
 // ----------------------------------------------------------------------
