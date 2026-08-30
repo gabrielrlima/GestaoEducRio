@@ -67,6 +67,9 @@ export interface Unidade {
   latitude: number | null;
   longitude: number | null;
   ativa: 0 | 1;
+  /** Só vem preenchido em listUnidades (soma de vaga_config do ano_processo pedido). */
+  capacidade_total?: number;
+  vagas_ocupadas?: number;
 }
 
 export interface VagaConfig {
