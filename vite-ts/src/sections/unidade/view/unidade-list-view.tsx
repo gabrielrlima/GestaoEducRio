@@ -67,6 +67,7 @@ export function UnidadeListView() {
     { id: 'bairro', label: t('unidadesList.tableHead.bairro') },
     { id: 'cre', label: t('unidadesList.tableHead.cre') },
     { id: 'tipo_gestao', label: t('unidadesList.tableHead.gestao') },
+    { id: 'ocupacao', label: t('unidadesList.tableHead.ocupacao') },
     { id: 'solicitacoes', label: t('unidadesList.tableHead.solicitacoes'), align: 'right' },
   ];
 

@@ -67,6 +67,9 @@ export interface Unidade {
   latitude: number | null;
   longitude: number | null;
   ativa: 0 | 1;
+  /** Só vem preenchido em listUnidades (soma de vaga_config do ano_processo pedido). */
+  capacidade_total?: number;
+  vagas_ocupadas?: number;
 }
 
 export interface VagaConfig {
@@ -116,6 +119,7 @@ export interface Crianca {
   nome_completo: string;
   data_nascimento: string;
   sexo: 'M' | 'F' | null;
+  cpf_crianca: string | null;
 }
 
 export interface InscricaoOpcao {
@@ -261,7 +265,7 @@ export async function atualizarResponsavel(
 
 export async function cadastrarCrianca(
   responsavelId: string,
-  input: { nomeCompleto: string; dataNascimento: string; sexo?: 'M' | 'F' }
+  input: { nomeCompleto: string; dataNascimento: string; sexo?: 'M' | 'F'; cpfCrianca?: string }
 ) {
   const { data } = await client.post<Crianca>(`/responsaveis/${responsavelId}/criancas`, input);
   return data;

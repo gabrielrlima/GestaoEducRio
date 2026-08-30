@@ -21,9 +21,12 @@
       "bairro": "Neighborhood",
       "cre": "CRE",
       "gestao": "Management",
-      "solicitacoes": "Requests"
+      "solicitacoes": "Requests",
+      "ocupacao": "Occupancy"
     },
-    "codigo": "Code {{codigo}}"
+    "codigo": "Code {{codigo}}",
+    "ocupacaoLegenda": "{{ocupadas}} of {{total}}",
+    "semVagasConfiguradas": "No slots configured"
   },
   "unidadeDetail": {
     "cre": "CRE {{cre}}",

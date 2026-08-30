@@ -21,9 +21,12 @@
       "bairro": "Bairro",
       "cre": "CRE",
       "gestao": "Gestão",
-      "solicitacoes": "Solicitações"
+      "solicitacoes": "Solicitações",
+      "ocupacao": "Ocupação"
     },
-    "codigo": "Código {{codigo}}"
+    "codigo": "Código {{codigo}}",
+    "ocupacaoLegenda": "{{ocupadas}} de {{total}}",
+    "semVagasConfiguradas": "Sem vagas configuradas"
   },
   "unidadeDetail": {
     "cre": "CRE {{cre}}",
