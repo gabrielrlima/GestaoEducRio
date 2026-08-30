@@ -1,5 +1,5 @@
 import { Database } from 'bun:sqlite';
-import { existsSync, copyFileSync, mkdirSync } from 'node:fs';
+import { existsSync, copyFileSync, mkdirSync, rmSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 const DATABASE_PATH = process.env.DATABASE_PATH ?? 'data/app.db';
@@ -23,6 +23,12 @@ if (existsSync(DATABASE_PATH) && hasUnidades(DATABASE_PATH)) {
   console.log('[bootstrap] banco já semeado em', DATABASE_PATH, '— preservando dados (volume persistente)');
 } else {
   mkdirSync(dirname(DATABASE_PATH), { recursive: true });
+  // Um -wal/-shm órfão de uma tentativa anterior (schema vazio) fica ao lado do
+  // arquivo principal e é reaplicado por cima do snapshot recém-copiado na
+  // próxima abertura em modo WAL — sem isso o banco volta a aparecer vazio.
+  for (const suffix of ['-wal', '-shm', '-journal']) {
+    rmSync(`${DATABASE_PATH}${suffix}`, { force: true });
+  }
   copyFileSync(SEED_SNAPSHOT_PATH, DATABASE_PATH);
   console.log(
     '[bootstrap] banco ausente ou sem unidades — copiado o snapshot de unidades/vagas para',
