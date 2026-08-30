@@ -7,6 +7,7 @@ import type { TipoGestao } from '../modules/unidades/types';
 const DADOS_DIR = process.env.DADOSCRECHE_DIR ?? '../data/dadoscreche';
 const QUERY_D_PATH = `${DADOS_DIR}/Bases IC_ ClassificadoseFila/04_UnidadesEscolaresComEndereco.csv`;
 const UNIDADES_XLSX_PATH = `${DADOS_DIR}/OferecimentosEvagas/Unidades_Unificadas_com_Localizacao.xlsx`;
+const INEP_CSV_PATH = process.env.INEP_CSV_PATH ?? '../data/inep/escolas-rio-censo.csv';
 
 /**
  * Mapeamento de tipo_gestao NÃO usa o código bruto `tipo` da Query D — checamos
@@ -176,6 +177,132 @@ function parseBairrosPlanilha1(buffer: ArrayBuffer): Map<string, string> {
   return map;
 }
 
+interface InepRow {
+  nomeOriginal: string;
+  codigoEmbutido: string | null;
+  bairro: string | null;
+}
+
+/**
+ * Higienização — Camada 3 de recuperação de bairro (última, mais arriscada).
+ * O Censo Escolar do INEP (CSV baixado manualmente pelo usuário, filtrado
+ * pro Rio) não compartilha nenhum ID com nosso `esc_codigo` de forma
+ * confiável pras ~128 unidades que ainda faltam depois das Camadas 1+2 —
+ * testado: código embutido no nome (`"0918802 EDI ..."` / `"05006 - ..."`)
+ * bate 1:1 com `esc_codigo` quando a unidade JÁ tem bairro preenchido, mas
+ * dá **zero** match pras que faltam (não estão censadas, provavelmente
+ * conveniadas pequenas). Fallback: casar pelo "núcleo" do nome (sem
+ * prefixo/tipo/código) — só aceita se o núcleo for único na base do INEP E
+ * (quando ambos os lados têm código numérico) os códigos não colidirem, pra
+ * evitar o mesmo tipo de falso-positivo por nome que descartamos com
+ * Nominatim (ver docs/desafio/higienizacao-bairro.md).
+ */
+function normalizarNucleoNome(nome: string): string {
+  let n = nome.toUpperCase();
+  n = n.normalize('NFD').replace(/[̀-ͯ]/g, '');
+  n = n.replace(/^\d{2,7}\s*-?\s*/, '');
+  n = n.replace(
+    /^"?(CM|CP|CC|CDEI|EDI|EM|EEM|CEM|CE|CIEP|CEJA|CRECHE MUNICIPAL|CRECHE PARCEIRA|CRECHE COMUNITARIA|CRECHE|ESCOLA MUNICIPAL|ESCOLA ESTADUAL|COLEGIO MUNICIPAL|ESPACO DE DESENVOLVIMENTO INFANTIL|ASSOCIACAO)\s+/,
+    ''
+  );
+  n = n.replace(/\(DUPLICAD[AO]\)/g, '');
+  n = n.replace(/[^A-Z0-9\s]/g, ' ');
+  n = n.replace(/\s+/g, ' ').trim();
+  return n;
+}
+
+function extrairCodigoEmbutido(nomeOriginal: string): string | null {
+  const m = nomeOriginal.match(/^(\d{2,7})\s*-?\s+/);
+  return m ? m[1] : null;
+}
+
+function extrairBairroDeEndereco(endereco: string): string | null {
+  const semCep = endereco.split(/\d{5}-\d{3}/)[0];
+  if (!semCep) return null;
+  const semPonto = semCep.replace(/\.\s*$/, '').trim();
+  if (!semPonto) return null;
+  const partes = semPonto.split('.').map((p) => p.trim()).filter(Boolean);
+  if (partes.length >= 2) return partes[partes.length - 1];
+  const m = partes[0]?.match(/,\s*(?:S\/?N\.?|\d+[A-Z]?)\s+(.+)$/i);
+  return m ? m[1].trim() : null;
+}
+
+function parseCsvLine(linha: string): string[] {
+  const campos: string[] = [];
+  let atual = '';
+  let entreAspas = false;
+  for (let i = 0; i < linha.length; i++) {
+    const c = linha[i];
+    if (entreAspas) {
+      if (c === '"') {
+        if (linha[i + 1] === '"') {
+          atual += '"';
+          i++;
+        } else entreAspas = false;
+      } else atual += c;
+    } else if (c === '"') entreAspas = true;
+    else if (c === ',') {
+      campos.push(atual);
+      atual = '';
+    } else atual += c;
+  }
+  campos.push(atual);
+  return campos;
+}
+
+function parseInepPorNucleo(csvText: string): Map<string, InepRow[]> {
+  const linhas = csvText.split('\n').filter((l) => l.trim().length > 0);
+  const cabecalho = parseCsvLine(linhas[0]).map((c) => c.trim());
+  const idxEscola = cabecalho.indexOf('Escola');
+  const idxEndereco = cabecalho.indexOf('Endereço');
+  const idxMunicipio = cabecalho.indexOf('Município');
+
+  const porNucleo = new Map<string, InepRow[]>();
+  for (let i = 1; i < linhas.length; i++) {
+    const campos = parseCsvLine(linhas[i]);
+    if (campos.length < cabecalho.length) continue;
+    if (campos[idxMunicipio]?.trim() !== 'Rio de Janeiro') continue;
+
+    const nomeOriginal = campos[idxEscola]?.trim() ?? '';
+    const endereco = campos[idxEndereco]?.trim() ?? '';
+    const nucleo = normalizarNucleoNome(nomeOriginal);
+    if (!nucleo) continue;
+
+    const row: InepRow = {
+      nomeOriginal,
+      codigoEmbutido: extrairCodigoEmbutido(nomeOriginal),
+      bairro: extrairBairroDeEndereco(endereco),
+    };
+    const arr = porNucleo.get(nucleo) ?? [];
+    arr.push(row);
+    porNucleo.set(nucleo, arr);
+  }
+  return porNucleo;
+}
+
+/**
+ * Só aceita o match se for único (núcleo não ambíguo) e, quando os dois
+ * lados têm código numérico, eles baterem — descarta match único mas com
+ * código conflitante (achado real: "CM PINTANDO O SETE" [0918612] batia
+ * por nome com "EDI PINTANDO O SETE" [0918802] no INEP — unidades
+ * diferentes, mesmo nome popular).
+ */
+function resolverBairroPorNucleo(
+  nomeUnidade: string,
+  escCodigo: string,
+  porNucleo: Map<string, InepRow[]>
+): string | null {
+  const candidatos = porNucleo.get(normalizarNucleoNome(nomeUnidade));
+  if (!candidatos || candidatos.length !== 1) return null;
+
+  const candidato = candidatos[0];
+  const codigoNossoENumerico = /^\d+$/.test(escCodigo);
+  if (candidato.codigoEmbutido && codigoNossoENumerico && candidato.codigoEmbutido !== escCodigo) {
+    return null;
+  }
+  return candidato.bairro;
+}
+
 async function main() {
   console.log('[seed-unidades] lendo Query D:', QUERY_D_PATH);
   const csvBuffer = await Bun.file(QUERY_D_PATH).arrayBuffer();
@@ -198,9 +325,20 @@ async function main() {
     console.warn('[seed-unidades] planilha de geolocalização não encontrada, seguindo sem lat/long:', (error as Error).message);
   }
 
+  let inepPorNucleo = new Map<string, InepRow[]>();
+  try {
+    const inepBuffer = await Bun.file(INEP_CSV_PATH).arrayBuffer();
+    const inepText = new TextDecoder('utf-8').decode(inepBuffer).replace(/^﻿/, '');
+    inepPorNucleo = parseInepPorNucleo(inepText);
+    console.log(`[seed-unidades] ${inepPorNucleo.size} núcleos de nome únicos no Censo Escolar do INEP (Rio)`);
+  } catch (error) {
+    console.warn('[seed-unidades] CSV do Censo Escolar (INEP) não encontrado, pulando Camada 3 de bairro:', (error as Error).message);
+  }
+
   const contarPorTipo: Record<string, number> = {};
   let comLatLong = 0;
   let bairroRecuperado = 0;
+  let bairroRecuperadoInep = 0;
   const SEM_BAIRRO = 'Não informado';
   const contarAtivacao = { crechePlanilha: 0, naoCrechePlanilha: 0, crecheHeuristico: 0, naoCrecheHeuristico: 0 };
 
@@ -227,6 +365,13 @@ async function main() {
         if (bairroRecuperadoValor) {
           bairroFinal = bairroRecuperadoValor;
           bairroRecuperado++;
+        }
+      }
+      if (bairroFinal === SEM_BAIRRO) {
+        const bairroInep = resolverBairroPorNucleo(unidade.nome, unidade.escCodigo, inepPorNucleo);
+        if (bairroInep) {
+          bairroFinal = bairroInep;
+          bairroRecuperadoInep++;
         }
       }
 
@@ -271,7 +416,8 @@ async function main() {
   console.log('[seed-unidades] higienização de bairro:', {
     semBairroNaFonte: semBairroAntes,
     recuperadosViaPlanilha: bairroRecuperado,
-    aindaSemBairro: semBairroAntes - bairroRecuperado,
+    recuperadosViaInep: bairroRecuperadoInep,
+    aindaSemBairro: semBairroAntes - bairroRecuperado - bairroRecuperadoInep,
   });
   console.log('[seed-unidades] higienização de tipo (só creche fica ativa):', {
     ...contarAtivacao,

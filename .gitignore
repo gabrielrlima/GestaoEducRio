@@ -29,3 +29,7 @@ yarn-error.log*
 # Dataset oficial clonado (repo externo CIT-SME-RJ/dadoscreche, ~68MB, tem seu próprio .git)
 # Ver docs/desafio/dataset-dicionario.md para instruções de clone/leitura
 data/dadoscreche/
+
+# Censo Escolar do INEP (download manual do usuário, ~1.7MB) — usado só como
+# camada extra de recuperação de bairro no seed. Ver docs/desafio/higienizacao-bairro.md.
+data/inep/

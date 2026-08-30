@@ -18,7 +18,8 @@ Dessas 258:
 | **2 — Planilha1** (aba sem lat/long) | Mesma planilha, aba `Planilha1`, colunas `Designação`/`Bairro` — cobre um conjunto de unidades parcialmente diferente da aba 1 (1.913 linhas) | Fallback quando a Camada 1 não encontra o código |
 | **3 — Planilhas de parceiras** (`Parceiras2024/2025.xlsx`, aba `Endereços`) | Testado e descartado — **zero match adicional** além do que as Camadas 1+2 já cobrem (só tem unidade parceira, que já bate nelas) | Não implementado |
 | **4 — CEP → bairro (ViaCEP ou similar)** | Testado e descartado — **as mesmas 258 linhas sem bairro também não têm CEP** na fonte, não há nada pra geocodificar a partir de | Não implementado |
-| **5 — Geocodificação por nome (API externa)** | Casar unidade por nome contra uma API de lugares (Google Places, Nominatim) | Não implementado — risco de falso-positivo por nome ambíguo, e são só ~2h30 restantes de hackathon; ver "resíduo" abaixo |
+| **5 — Geocodificação por nome (API externa)** | Casar unidade por nome contra uma API de lugares (Google Places, Nominatim) | Testado e descartado — falso-positivo (ver item 2 do resíduo abaixo) |
+| **6 — Censo Escolar do INEP** (`data/inep/escolas-rio-censo.csv`, download manual do usuário) | Casar por "núcleo" do nome (sem prefixo/tipo/código) contra o CSV; extrai bairro do campo `Endereço`; só aceita match único e sem conflito de código | **Implementado** — ver item 3 do resíduo abaixo |
 
 ## Resultado
 
@@ -28,20 +29,33 @@ Rodando `bun run seed:unidades` do zero:
 [seed-unidades] higienização de bairro: {
   semBairroNaFonte: 258,
   recuperadosViaPlanilha: 99,
-  aindaSemBairro: 159,
+  recuperadosViaInep: 11,
+  aindaSemBairro: 148,
 }
 ```
 
-(Depois do `INSERT OR IGNORE` deduplicar por `esc_codigo`, a base final fica com **152 de 2.129 unidades** ainda sem bairro — antes eram 210.)
+(Depois do `INSERT OR IGNORE` deduplicar por `esc_codigo`, a base final fica com **141 de 2.129 unidades** ainda sem bairro — antes eram 210, depois 152 com a Camada 2, agora 141 com a Camada 3 do INEP. Entre as **1.061 creches ativas** especificamente, 119 ficam sem bairro.)
 
-## O que fica em aberto (resíduo de ~152 unidades)
+## Camada 3 — Censo Escolar do INEP (implementada em 2026-08-30, sob demanda)
 
-Essas unidades não têm bairro, CEP nem coordenadas em **nenhuma fonte de dados fornecida pro hackathon**. Não é um problema de código — é ausência de dado na origem. Duas saídas, nenhuma implementada automaticamente hoje:
+O usuário baixou manualmente um recorte do Censo Escolar do INEP já filtrado pro Rio (`data/inep/escolas-rio-censo.csv`, 4.153 escolas, gitignored — é preciso baixar de novo pra reseedar do zero numa máquina limpa; ver `INEP_CSV_PATH` em `seed-unidades.ts`, tem fallback silencioso se o arquivo não existir).
 
-1. **Curadoria manual pelas CREs** — o backend já expõe `PATCH /unidades/:id` (aceita `bairro`, `cep`, `logradouro` etc.) pronto pra isso. Falta só uma tela de edição no Admin (hoje só tem visualização) e, idealmente, um filtro "Unidades pendentes de higienização" (`GET /unidades?bairro=Não informado` já funciona via o parâmetro de busca existente).
-2. **Geocodificação por nome via API externa** — testado empiricamente (não só descartado por suposição): Nominatim/OpenStreetMap gratuito, 3 nomes de teste, 2 sem resultado e 1 **errado** ("CM DO CAMPINHO" bateu com uma rua "Estrada do Campinho" no bairro Santa Rosa — Campinho é ele mesmo um bairro do Rio, resultado quase certamente incorreto). Descartado: risco de contaminar o dado é maior que o ganho.
-3. **Censo Escolar do INEP** (base oficial de escolas, mais confiável que busca genérica — o usuário baixou um recorte já filtrado pro Rio, 4.153 escolas). Testado: casamento por nome exato normalizado deu **0 matches** (nomes têm formatos diferentes: `EM PEDRO BRUNO` vs `0121002 ESCOLA MUNICIPAL PEDRO BRUNO`); casamento removendo abreviação/prefixo de ambos os lados (`EM`→`ESCOLA MUNICIPAL`, etc.) e comparando o "núcleo" do nome deu **19 matches únicos de 152** — real, mas retorno baixo pro esforço de implementar um segundo pipeline de matching fuzzy. Não implementado no seed hoje; fica documentado como próximo passo caso sobre tempo.
+**Primeira tentativa (descartada): join por código.** O nome de cada escola no CSV do INEP às vezes vem prefixado com um código numérico (`"0918802 EDI PINTANDO O SETE"`, `"05006 - CRECHE CARDEAL CAMARA"`). Confirmamos que esse código bate 1:1 com nosso `esc_codigo` — mas só pra unidades que **já têm bairro preenchido** por outra fonte. Testado contra as unidades que faltam: **0 de 128** aparecem no INEP por código — não estão censadas lá (provavelmente creches conveniadas pequenas, fora do escopo do Censo Escolar).
+
+**Segunda tentativa (implementada): join por "núcleo" do nome.** Normaliza os dois lados (remove prefixo de tipo — `CM`/`CP`/`EDI`/`ESCOLA MUNICIPAL`/etc. —, código numérico inicial, acento e pontuação) e casa pelo nome restante. Extrai o bairro do campo `Endereço` do INEP (formato `"<LOGRADOURO>, <NÚMERO> [COMPLEMENTO.] <BAIRRO>. <CEP> Rio de Janeiro - RJ."` — pega o segmento imediatamente antes do CEP). Só aceita o match se:
+- o núcleo do nome for **único** no INEP (descarta nomes ambíguos, ex.: duas escolas diferentes chamadas só "CRECHE MUNICIPAL X"), **e**
+- quando os dois lados têm código numérico, os códigos **não colidirem** — achado real que motivou essa checagem: `CM PINTANDO O SETE` (esc_codigo `0918612`) bate por nome com `EDI PINTANDO O SETE` do INEP (código embutido `0918802`) — nomes populares iguais, unidades diferentes (mesmo padrão do falso-positivo que já tínhamos visto com Nominatim). Esse par foi descartado; caiu fora dos 11 recuperados.
+
+Resultado: **11 de 258** unidades recuperadas (todas com nome exclusivo e sem conflito de código) — retorno modesto, mas real e verificado um a um antes de entrar no seed (ex.: `CC CASA SANTA MARTA` → Botafogo, batendo com a favela Santa Marta que fica lá; `CP EDUQUE - VAL` → Vila Valqueire).
+
+**Limitação conhecida:** a checagem de conflito de código só funciona quando *nosso lado* também tem um `esc_codigo` numérico. Unidades sem código na Query D recebem um UUID sintético no seed — nesses casos não há como cross-checar contra um código conflitante do INEP, então o match é aceito só pela unicidade do núcleo do nome (risco residual menor, mas não nulo).
+
+## O que fica em aberto (resíduo de ~141 unidades, ~119 delas creches ativas)
+
+Essas unidades não têm bairro, CEP nem coordenadas em nenhuma fonte de dados testada até agora (Query D, planilhas complementares, Censo Escolar do INEP). Não é (mais) um problema de matching — é ausência real do dado, provavelmente porque são unidades pequenas/conveniadas que nunca foram censadas oficialmente. Saída pendente:
+
+**Curadoria manual pelas CREs** — o backend já expõe `PATCH /unidades/:id` (aceita `bairro`, `cep`, `logradouro` etc.) pronto pra isso. Falta só uma tela de edição no Admin (hoje só tem visualização) e, idealmente, um filtro "Unidades pendentes de higienização" (`GET /unidades?bairro=Não informado` já funciona via o parâmetro de busca existente).
 
 ## Onde está o código
 
-`backend/src/seed/seed-unidades.ts` — funções `parseGeolocalizacoes` (Camada 1, já existia, ganhou o campo `bairro`) e `parseBairrosPlanilha1` (Camada 2, nova). O fallback só é aplicado quando `unidade.bairro === 'Não informado'` — nunca sobrescreve um bairro que já veio preenchido da Query D.
+`backend/src/seed/seed-unidades.ts` — funções `parseGeolocalizacoes` (Camada 1, já existia, ganhou o campo `bairro`), `parseBairrosPlanilha1` (Camada 2) e `parseInepPorNucleo`/`resolverBairroPorNucleo`/`normalizarNucleoNome`/`extrairBairroDeEndereco` (Camada 3, INEP). Cada camada só roda quando `unidade.bairro === 'Não informado'` depois das anteriores — nunca sobrescreve um bairro que já veio preenchido de uma fonte melhor.
