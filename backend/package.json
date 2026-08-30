@@ -12,7 +12,8 @@
     "seed:vagas": "bun run src/seed/seed-vagas.ts",
     "seed:vagas-real": "bun run src/seed/seed-vagas-real.ts",
     "seed:historico": "bun run src/seed/seed-historico.ts",
-    "seed": "bun run seed:unidades && bun run seed:vagas && bun run seed:vagas-real && bun run seed:historico",
+    "seed:perguntas": "bun run src/seed/seed-perguntas.ts",
+    "seed": "bun run seed:unidades && bun run seed:vagas && bun run seed:vagas-real && bun run seed:historico && bun run seed:perguntas",
     "eval:ia": "bun run src/eval/eval-recomendacao.ts"
   },
   "devDependencies": {

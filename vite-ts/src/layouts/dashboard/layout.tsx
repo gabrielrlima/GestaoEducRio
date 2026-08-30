@@ -23,7 +23,6 @@ import { NavVertical } from './nav-vertical';
 import { NavHorizontal } from './nav-horizontal';
 import { Searchbar } from '../components/searchbar';
 import { MenuButton } from '../components/menu-button';
-import { SettingsButton } from '../components/settings-button';
 import { LanguagePopover } from '../components/language-popover';
 import { dashboardLayoutVars, dashboardNavColorVars } from './css-vars';
 import { useNavData as useDashboardNavData } from '../nav-config-dashboard';
@@ -138,9 +137,6 @@ export function DashboardLayout({
 
           {/** @slot Language popover */}
           <LanguagePopover data={allLangs} />
-
-          {/** @slot Settings button */}
-          <SettingsButton />
         </Box>
       ),
     };

@@ -191,11 +191,14 @@ CREATE TABLE IF NOT EXISTS pergunta (
 );
 
 CREATE TABLE IF NOT EXISTS resposta_socioeconomica (
-  id           TEXT PRIMARY KEY,
-  inscricao_id TEXT NOT NULL REFERENCES inscricao(id),
-  pergunta_id  TEXT NOT NULL REFERENCES pergunta(id),
-  resposta     TEXT NOT NULL CHECK (resposta IN ('Sim','Nao')),
-  confirmado   INTEGER NOT NULL DEFAULT 0,
+  id             TEXT PRIMARY KEY,
+  inscricao_id   TEXT NOT NULL REFERENCES inscricao(id),
+  pergunta_id    TEXT NOT NULL REFERENCES pergunta(id),
+  resposta       TEXT NOT NULL CHECK (resposta IN ('Sim','Nao')),
+  confirmado     INTEGER NOT NULL DEFAULT 0,
+  arquivo_nome    TEXT,     -- comprovante anexado pela família (upload no Portal), opcional
+  arquivo_tipo    TEXT,
+  arquivo_base64  TEXT,
   UNIQUE (inscricao_id, pergunta_id)
 );
 
