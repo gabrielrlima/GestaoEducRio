@@ -45,12 +45,16 @@ export const themeConfig: ThemeConfig = {
    * Palette
    *************************************** */
   palette: {
+    // Paleta oficial "Manual de Marca Prefeitura Rio 2025" (ver docs/desafio/manual-marca-rio.md):
+    // light/main/dark são as 3 cores azuis reais do manual (#42b9eb, #2a688f, #13335a — este
+    // último é a cor primária oficial, página "Cores"); lighter/darker são extrapolações
+    // mantendo a mesma família de matiz.
     primary: {
-      lighter: '#C8FAD6',
-      light: '#5BE49B',
-      main: '#00A76F',
-      dark: '#007867',
-      darker: '#004B50',
+      lighter: '#D6F0FC',
+      light: '#42B9EB',
+      main: '#2A688F',
+      dark: '#13335A',
+      darker: '#0A1B30',
       contrastText: '#FFFFFF',
     },
     secondary: {
