@@ -3,7 +3,9 @@ import { existsSync, copyFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 const DATABASE_PATH = process.env.DATABASE_PATH ?? 'data/app.db';
-const SEED_SNAPSHOT_PATH = new URL('../../data/seed/unidades-seed.db', import.meta.url).pathname;
+// Fora de data/ de propósito: em produção um volume é montado em cima de data/,
+// o que esconderia qualquer arquivo colocado ali dentro da imagem em runtime.
+const SEED_SNAPSHOT_PATH = new URL('../../seed-baseline/unidades-seed.db', import.meta.url).pathname;
 
 function hasUnidades(path: string): boolean {
   try {
