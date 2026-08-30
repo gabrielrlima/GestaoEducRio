@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { db } from '../../db/client';
 import { badRequest, notFound } from '../../lib/errors';
 import { isValidCpf, normalizeCpf } from '../../lib/cpf';
+import { consultarBolsaFamiliaPorNis } from '../../lib/transparencia';
 
 export interface Responsavel {
   id: string;
@@ -16,6 +17,9 @@ export interface Responsavel {
   numero: string | null;
   latitude: number | null;
   longitude: number | null;
+  nis: string | null;
+  bolsa_familia_status: 'sim' | 'nao' | 'nao_consultado';
+  bolsa_familia_consultado_em: string | null;
   criado_em: string;
 }
 
@@ -29,6 +33,7 @@ export interface CreateResponsavelInput {
   bairro: string;
   logradouro?: string;
   numero?: string;
+  nis?: string;
 }
 
 /**
@@ -37,8 +42,12 @@ export interface CreateResponsavelInput {
  * portal (CPF + data de nascimento + código de verificação enviado por e-mail).
  * R1: validação real de CPF contra a Receita Federal fica como stub — aqui só
  * valida formato/dígito verificador.
+ *
+ * Se `nis` for informado, consulta Bolsa Família no Portal da Transparência
+ * (best-effort — sem chave configurada, ou se a chamada falhar/expirar, o
+ * cadastro segue normalmente com bolsa_familia_status='nao_consultado').
  */
-export function upsertResponsavel(input: CreateResponsavelInput): Responsavel {
+export async function upsertResponsavel(input: CreateResponsavelInput): Promise<Responsavel> {
   const cpf = normalizeCpf(input.cpf);
   if (!isValidCpf(cpf)) {
     throw badRequest('CPF_INVALIDO', 'CPF inválido (formato ou dígito verificador)');
@@ -47,10 +56,25 @@ export function upsertResponsavel(input: CreateResponsavelInput): Responsavel {
   const existing = db.query('SELECT * FROM responsavel WHERE cpf = $cpf').get({ $cpf: cpf }) as Responsavel | null;
   if (existing) return existing;
 
+  const nis = input.nis?.trim() || null;
+  let bolsaFamiliaStatus: 'sim' | 'nao' | 'nao_consultado' = 'nao_consultado';
+  let bolsaFamiliaConsultadoEm: string | null = null;
+  if (nis) {
+    const consulta = await consultarBolsaFamiliaPorNis(nis);
+    if (consulta) {
+      bolsaFamiliaStatus = consulta.recebe ? 'sim' : 'nao';
+      bolsaFamiliaConsultadoEm = new Date().toISOString();
+    }
+  }
+
   const id = randomUUID();
   db.query(
-    `INSERT INTO responsavel (id, cpf, nome, data_nascimento, telefone, email, cep, bairro, logradouro, numero)
-     VALUES ($id, $cpf, $nome, $dataNascimento, $telefone, $email, $cep, $bairro, $logradouro, $numero)`
+    `INSERT INTO responsavel
+       (id, cpf, nome, data_nascimento, telefone, email, cep, bairro, logradouro, numero,
+        nis, bolsa_familia_status, bolsa_familia_consultado_em)
+     VALUES
+       ($id, $cpf, $nome, $dataNascimento, $telefone, $email, $cep, $bairro, $logradouro, $numero,
+        $nis, $bolsaFamiliaStatus, $bolsaFamiliaConsultadoEm)`
   ).run({
     $id: id,
     $cpf: cpf,
@@ -62,6 +86,9 @@ export function upsertResponsavel(input: CreateResponsavelInput): Responsavel {
     $bairro: input.bairro,
     $logradouro: input.logradouro ?? null,
     $numero: input.numero ?? null,
+    $nis: nis,
+    $bolsaFamiliaStatus: bolsaFamiliaStatus,
+    $bolsaFamiliaConsultadoEm: bolsaFamiliaConsultadoEm,
   });
 
   return getResponsavelByCpf(cpf);
@@ -80,8 +107,12 @@ export function getResponsavelById(id: string): Responsavel {
   return row;
 }
 
-export function updateResponsavel(id: string, patch: Partial<CreateResponsavelInput>): Responsavel {
-  getResponsavelById(id);
+/**
+ * Se `nis` vier no patch (e mudou), reconsulta Bolsa Família (best-effort,
+ * mesma regra de falha silenciosa de `upsertResponsavel`).
+ */
+export async function updateResponsavel(id: string, patch: Partial<CreateResponsavelInput>): Promise<Responsavel> {
+  const atual = getResponsavelById(id);
 
   const fieldMap: Record<string, string> = {
     nome: 'nome',
@@ -92,6 +123,7 @@ export function updateResponsavel(id: string, patch: Partial<CreateResponsavelIn
     bairro: 'bairro',
     logradouro: 'logradouro',
     numero: 'numero',
+    nis: 'nis',
   };
 
   const sets: string[] = [];
@@ -100,6 +132,15 @@ export function updateResponsavel(id: string, patch: Partial<CreateResponsavelIn
     if (key in patch) {
       sets.push(`${column} = $${key}`);
       params[`$${key}`] = (patch as Record<string, unknown>)[key];
+    }
+  }
+
+  if (patch.nis && patch.nis !== atual.nis) {
+    const consulta = await consultarBolsaFamiliaPorNis(patch.nis);
+    if (consulta) {
+      sets.push('bolsa_familia_status = $bolsaFamiliaStatus', 'bolsa_familia_consultado_em = $bolsaFamiliaConsultadoEm');
+      params.$bolsaFamiliaStatus = consulta.recebe ? 'sim' : 'nao';
+      params.$bolsaFamiliaConsultadoEm = new Date().toISOString();
     }
   }
 
