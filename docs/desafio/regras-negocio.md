@@ -1,6 +1,8 @@
 # Regras de Negócio — Inscrição Creche (Prefeitura do Rio / SME)
 
 > Contexto de IA separado do briefing narrativo ([prefeitura-rio-creches.md](prefeitura-rio-creches.md)). Este arquivo lista as **regras concretas e atômicas** do sistema atual, numeradas para referência precisa (ex.: "respeitar R7" / "isso quebra R12"). Use como checklist ao desenhar schema, validações, endpoints do backend (Elysia) ou lógica de classificação/convocação — não ao explicar o problema para alguém, isso é papel do briefing.
+>
+> **Eixo escolhido: Eixo 2 — Inscrição e Classificação.** As regras mais diretamente atacadas pelo produto são **R2, R8, R27-R30** (ver seção 6 e 7). Ver `CLAUDE.md` § Decisões para o escopo exato.
 
 ## 1. Regras de Inscrição
 

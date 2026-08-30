@@ -1,6 +1,8 @@
 # Desafio: Inscrição Creche — Prefeitura do Rio (SME)
 
-> Registro do briefing apresentado no hackathon (slides da Secretaria Municipal de Educação do Rio). Fonte primária para orientar o escopo do produto.
+> Registro do briefing apresentado no hackathon (slides da Secretaria Municipal de Educação do Rio). Fonte primária para orientar o escopo do produto. Ver também `briefing-oficial-sme.md` (documento oficial completo, mais autoritativo em caso de divergência).
+>
+> **Eixo escolhido: Eixo 2 — Inscrição e Classificação.** Ver `CLAUDE.md` § Decisões para o escopo exato do produto.
 
 ## O que é o sistema hoje
 

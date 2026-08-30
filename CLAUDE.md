@@ -16,7 +16,7 @@ Registrar aqui assim que forem tomadas (não deixar só no chat):
 
 ## Projeto
 
-Projeto de hackathon para o desafio da **Prefeitura do Rio (SME) — Inscrição Creche** (sistema matricula.rio). O desafio tem 3 eixos-problema: **Planejamento** (antecipar demanda futura, hoje baseado só em histórico), **Inscrição e Classificação** (escolha de unidades sem critério territorial, classificação por unidade em vez de por CPF) e **Convocação** (processo manual e lento quando surge vaga). Ainda não decidimos qual eixo o produto vai atacar. Ver [docs/desafio/prefeitura-rio-creches.md](docs/desafio/prefeitura-rio-creches.md) para o briefing completo (fluxos, dados disponibilizados, anonimização) — leia esse arquivo antes de propor features ou schema de dados.
+Projeto de hackathon para o desafio da **Prefeitura do Rio (SME) — Inscrição Creche** ("Match Perfeito: Inteligência na Inscrição de Creche", sistema matricula.rio). O desafio tem 3 eixos-problema: Planejamento, Inscrição e Classificação, Convocação (ver `docs/desafio/briefing-oficial-sme.md`). **Eixo escolhido: Eixo 2 — Inscrição e Classificação** (ver seção Decisões acima para o escopo exato). Ver [docs/desafio/briefing-oficial-sme.md](docs/desafio/briefing-oficial-sme.md) (documento oficial, mais autoritativo) e [docs/desafio/prefeitura-rio-creches.md](docs/desafio/prefeitura-rio-creches.md) (briefing baseado nos slides) — leia antes de propor features ou schema de dados.
 
 ## Stack
 
