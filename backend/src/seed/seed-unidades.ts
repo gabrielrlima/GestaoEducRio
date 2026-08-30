@@ -79,6 +79,50 @@ interface Geolocalizacao {
 
 const TIPOS_CRECHE_RELEVANTES = new Set(['Creche', 'Creche Parceira', 'EDI', 'CDEI']);
 
+/**
+ * Higienização — o `unidade` importava TODAS as ~2.188 linhas da Query D sem
+ * filtro, incluindo modalidades que não são creche (Escola Municipal regular,
+ * CIEP, CEJA etc. — a Query D não é só "creches e EDIs" como o dicionário
+ * oficial sugere, na prática ela cobre a rede toda). O front deve mostrar só
+ * creche. Fonte de verdade: coluna `Tipo` da planilha
+ * `Unidades_Unificadas_com_Localizacao.xlsx` (sem o filtro que
+ * `parseGeolocalizacoes` já aplica) — pra unidades que não aparecem lá
+ * (nem como creche nem como outra coisa), cai num heurístico por prefixo do
+ * nome. Ver docs/desafio/higienizacao-creches.md.
+ */
+function parseTodosOsTipos(buffer: ArrayBuffer): Map<string, string> {
+  const workbook = XLSX.read(buffer, { type: 'array' });
+  const sheet = workbook.Sheets['Unidades_Unificadas'];
+  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: null });
+
+  const map = new Map<string, string>();
+  for (const row of rows) {
+    const designacao = row.DESIGNACAO;
+    const tipo = row.Tipo;
+    if (designacao == null || !tipo) continue;
+    map.set(normalizeUnitCode(String(designacao)), String(tipo));
+  }
+  return map;
+}
+
+const PREFIXOS_CRECHE = /^"?(CP|EDI|CM|CC|CDEI)\s/i;
+const NOME_CONTEM_CRECHE = /creche/i;
+const PREFIXOS_NAO_CRECHE = /^"?(EM|EEM|CEM|CE|CIEP|CEJA)\s/i;
+
+/**
+ * Decide se uma unidade é creche quando ela não aparece na planilha (nem
+ * como creche, nem como outra coisa) — heurístico por prefixo do nome,
+ * validado manualmente contra o Censo Escolar do INEP pra uma amostra (ver
+ * docs/desafio/higienizacao-creches.md). Onde há dúvida real, prefere
+ * excluir (falso negativo é mais barato de corrigir via curadoria manual
+ * do que poluir a lista de creches com escola regular).
+ */
+function pareceCreche(nome: string): boolean {
+  if (PREFIXOS_CRECHE.test(nome) || NOME_CONTEM_CRECHE.test(nome)) return true;
+  if (PREFIXOS_NAO_CRECHE.test(nome)) return false;
+  return false;
+}
+
 function parseGeolocalizacoes(buffer: ArrayBuffer): Map<string, Geolocalizacao> {
   const workbook = XLSX.read(buffer, { type: 'array' });
   const sheet = workbook.Sheets['Unidades_Unificadas'];
@@ -141,12 +185,15 @@ async function main() {
 
   let geoMap = new Map<string, Geolocalizacao>();
   let bairroFallbackMap = new Map<string, string>();
+  let tipoMap = new Map<string, string>();
   try {
     const xlsxBuffer = await Bun.file(UNIDADES_XLSX_PATH).arrayBuffer();
     geoMap = parseGeolocalizacoes(xlsxBuffer);
     bairroFallbackMap = parseBairrosPlanilha1(xlsxBuffer);
+    tipoMap = parseTodosOsTipos(xlsxBuffer);
     console.log(`[seed-unidades] ${geoMap.size} unidades geocodificadas na planilha complementar`);
     console.log(`[seed-unidades] ${bairroFallbackMap.size} unidades com bairro na aba Planilha1 (fallback)`);
+    console.log(`[seed-unidades] ${tipoMap.size} unidades com Tipo classificado na planilha`);
   } catch (error) {
     console.warn('[seed-unidades] planilha de geolocalização não encontrada, seguindo sem lat/long:', (error as Error).message);
   }
@@ -155,11 +202,12 @@ async function main() {
   let comLatLong = 0;
   let bairroRecuperado = 0;
   const SEM_BAIRRO = 'Não informado';
+  const contarAtivacao = { crechePlanilha: 0, naoCrechePlanilha: 0, crecheHeuristico: 0, naoCrecheHeuristico: 0 };
 
   const inserir = db.query(
     `INSERT OR IGNORE INTO unidade
-       (id, esc_codigo, nome, tipo_gestao, tipo_origem_raw, cre, logradouro, numero, complemento, bairro, cep, latitude, longitude)
-     VALUES ($id, $escCodigo, $nome, $tipoGestao, $tipoOrigemRaw, $cre, $logradouro, $numero, $complemento, $bairro, $cep, $latitude, $longitude)`
+       (id, esc_codigo, nome, tipo_gestao, tipo_origem_raw, cre, logradouro, numero, complemento, bairro, cep, latitude, longitude, ativa)
+     VALUES ($id, $escCodigo, $nome, $tipoGestao, $tipoOrigemRaw, $cre, $logradouro, $numero, $complemento, $bairro, $cep, $latitude, $longitude, $ativa)`
   );
 
   const transacao = db.transaction(() => {
@@ -182,6 +230,20 @@ async function main() {
         }
       }
 
+      // Higienização: só creche/EDI/CDEI/Creche Parceira ficam ativas (o
+      // front só deve listar creche) — ver docs/desafio/higienizacao-creches.md.
+      const tipoPlanilha = tipoMap.get(codigoNormalizado);
+      let ativa: 0 | 1;
+      if (tipoPlanilha) {
+        ativa = TIPOS_CRECHE_RELEVANTES.has(tipoPlanilha) ? 1 : 0;
+        if (ativa) contarAtivacao.crechePlanilha++;
+        else contarAtivacao.naoCrechePlanilha++;
+      } else {
+        ativa = pareceCreche(unidade.nome) ? 1 : 0;
+        if (ativa) contarAtivacao.crecheHeuristico++;
+        else contarAtivacao.naoCrecheHeuristico++;
+      }
+
       inserir.run({
         $id: randomUUID(),
         $escCodigo: unidade.escCodigo,
@@ -196,17 +258,25 @@ async function main() {
         $cep: unidade.cep,
         $latitude: geo?.latitude ?? null,
         $longitude: geo?.longitude ?? null,
+        $ativa: ativa,
       });
     }
   });
   transacao();
 
   const semBairroAntes = unidades.filter((u) => u.bairro === SEM_BAIRRO).length;
+  const totalAtivas = contarAtivacao.crechePlanilha + contarAtivacao.crecheHeuristico;
+  const totalInativas = contarAtivacao.naoCrechePlanilha + contarAtivacao.naoCrecheHeuristico;
   console.log('[seed-unidades] importação concluída:', { total: unidades.length, comLatLong, contarPorTipo });
   console.log('[seed-unidades] higienização de bairro:', {
     semBairroNaFonte: semBairroAntes,
     recuperadosViaPlanilha: bairroRecuperado,
     aindaSemBairro: semBairroAntes - bairroRecuperado,
+  });
+  console.log('[seed-unidades] higienização de tipo (só creche fica ativa):', {
+    ...contarAtivacao,
+    totalAtivas,
+    totalInativas,
   });
 }
 

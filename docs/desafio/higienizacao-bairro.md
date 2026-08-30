@@ -39,7 +39,8 @@ Rodando `bun run seed:unidades` do zero:
 Essas unidades não têm bairro, CEP nem coordenadas em **nenhuma fonte de dados fornecida pro hackathon**. Não é um problema de código — é ausência de dado na origem. Duas saídas, nenhuma implementada automaticamente hoje:
 
 1. **Curadoria manual pelas CREs** — o backend já expõe `PATCH /unidades/:id` (aceita `bairro`, `cep`, `logradouro` etc.) pronto pra isso. Falta só uma tela de edição no Admin (hoje só tem visualização) e, idealmente, um filtro "Unidades pendentes de higienização" (`GET /unidades?bairro=Não informado` já funciona via o parâmetro de busca existente).
-2. **Geocodificação por nome via API externa** — mais rápido de escalar, mas arriscado sem revisão humana (nome de escola não é único o bastante pra confiar cegamente). Não fizemos isso hoje por causa do tempo e do risco.
+2. **Geocodificação por nome via API externa** — testado empiricamente (não só descartado por suposição): Nominatim/OpenStreetMap gratuito, 3 nomes de teste, 2 sem resultado e 1 **errado** ("CM DO CAMPINHO" bateu com uma rua "Estrada do Campinho" no bairro Santa Rosa — Campinho é ele mesmo um bairro do Rio, resultado quase certamente incorreto). Descartado: risco de contaminar o dado é maior que o ganho.
+3. **Censo Escolar do INEP** (base oficial de escolas, mais confiável que busca genérica — o usuário baixou um recorte já filtrado pro Rio, 4.153 escolas). Testado: casamento por nome exato normalizado deu **0 matches** (nomes têm formatos diferentes: `EM PEDRO BRUNO` vs `0121002 ESCOLA MUNICIPAL PEDRO BRUNO`); casamento removendo abreviação/prefixo de ambos os lados (`EM`→`ESCOLA MUNICIPAL`, etc.) e comparando o "núcleo" do nome deu **19 matches únicos de 152** — real, mas retorno baixo pro esforço de implementar um segundo pipeline de matching fuzzy. Não implementado no seed hoje; fica documentado como próximo passo caso sobre tempo.
 
 ## Onde está o código
 

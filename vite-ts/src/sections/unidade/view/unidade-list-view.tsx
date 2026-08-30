@@ -75,7 +75,7 @@ export function UnidadeListView() {
   const [filterTipo, setFilterTipo] = useState<'all' | 'Direta' | 'Parceria'>('all');
 
   useEffect(() => {
-    Promise.all([listUnidades(), solicitacoesPorUnidade(ANO_PROCESSO)])
+    Promise.all([listUnidades({ ativa: true }), solicitacoesPorUnidade(ANO_PROCESSO)])
       .then(([lista, contagem]) => {
         setUnidades(lista);
         setSolicitacoes(Object.fromEntries(contagem.map((c) => [c.unidade_id, c.total_solicitacoes])));
