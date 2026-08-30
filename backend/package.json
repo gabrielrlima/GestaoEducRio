@@ -1,0 +1,29 @@
+{
+  "name": "backend",
+  "module": "src/index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts",
+    "migrate": "bun run src/db/migrate.ts",
+    "seed:unidades": "bun run src/seed/seed-unidades.ts",
+    "seed:vagas": "bun run src/seed/seed-vagas.ts",
+    "seed": "bun run seed:unidades && bun run seed:vagas"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/nodemailer": "^8.0.1"
+  },
+  "peerDependencies": {
+    "typescript": "^7"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.122.0",
+    "@elysiajs/cors": "^1.4.2",
+    "@elysiajs/swagger": "^1.3.1",
+    "elysia": "^1.4.30",
+    "nodemailer": "^9.0.6",
+    "xlsx": "^0.18.5"
+  }
+}

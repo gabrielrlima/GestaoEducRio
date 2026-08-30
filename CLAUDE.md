@@ -10,9 +10,10 @@ Registrar aqui assim que forem tomadas (não deixar só no chat):
 
 - **Eixo do desafio**: **Eixo 2 — Inscrição e Classificação**, na forma de ferramenta operacional (não dashboard analítico). Decidido em 2026-08-30.
 - **Formato de entrega**: **Ferramenta operacional** — serviço que cadastra unidades de creche, gerencia vagas por unidade/grupamento/turno, e portal para o responsável cadastrar filhos e inscrevê-los em até 5 unidades (fluxo equivalente ao matricula.rio real). Ataca diretamente R2 (escolha sem critério territorial) e R8 (classificação por unidade em vez de por CPF).
-- **Papel da IA dentro do produto**: TBD (obrigatório pelas regras do evento — não é só "usei Claude Code pra programar"). Ver `docs/SDD.md`/spec do backend para candidatos concretos assim que definida.
-- **Runtime do pipeline de dados**: TBD (Python vs TypeScript/Bun).
-- **Destino dos dados processados**: TBD (JSON estático / SQLite / Postgres Railway).
+- **Papel da IA dentro do produto**: `POST /api/ia/recomendar-unidades` — recomenda/explica unidades por proximidade real (haversine) com fallback determinístico se a Claude API falhar/expirar (nunca quebra a demo). Ver `backend/src/modules/ia/`.
+- **Runtime do pipeline de dados**: TypeScript/Bun nativo — scripts em `backend/src/seed/*.ts`, sem Python.
+- **Destino dos dados processados**: SQLite local (`backend/data/app.db`, via `bun:sqlite`, gitignored — cada um roda `bun run migrate && bun run seed`).
+- **Login**: admin único genérico (usuário/senha em env); mãe (portal) por CPF + data de nascimento + código de 6 dígitos enviado por e-mail (Hostinger SMTP, `contato@keyva.com.br` — cai em modo console/log se `SMTP_PASS` não estiver configurado). Sessão via token opaco em `sessao` (sem JWT).
 
 ## Projeto
 
@@ -46,7 +47,14 @@ Cheat-sheet do essencial. Para detalhes, ver os docs em `docs/minimals/` (índic
 
 ## Backend — Elysia
 
-Ainda **não scaffolded** — convenções TBD. Preencher esta seção assim que a estrutura inicial do backend for criada (organização de rotas/plugins, padrão de resposta de erro, autenticação, integração com o frontend, variáveis de ambiente do Railway, etc.).
+Fica em `backend/` (Bun + Elysia + TypeScript, SQLite via `bun:sqlite`, sem ORM). Ver [docs/desafio/backend-spec.md](docs/desafio/backend-spec.md) para a spec completa e a justificativa de cada decisão.
+
+- **Rodar local**: `cd backend && bun install && bun run migrate && bun run seed && bun run dev` — sobe em `http://localhost:3000`, docs Swagger em `/docs`, health check em `/health`. Copiar `.env.example` para `.env` antes (`ADMIN_USER`/`ADMIN_PASSWORD`, `SMTP_*`, `ANTHROPIC_API_KEY` — todos têm fallback seguro se ficarem em branco).
+- **Estrutura**: `src/db/` (schema.sql + client + migrate), `src/modules/<dominio>/` (routes.ts + service.ts, um módulo por recurso: `unidades`, `vagas`, `responsaveis`, `criancas`, `inscricoes`, `classificacao`, `ia`, `auth`), `src/lib/` (helpers puros: geo/haversine, cpf, email, otp, errors), `src/seed/` (scripts que leem `data/dadoscreche/` e populam o SQLite).
+- **Padrão de erro**: `ApiError` (`src/lib/errors.ts`) capturado num `onError` global em `src/index.ts` → `{ error: { code, message } }` com status HTTP correspondente. Sempre lançar `ApiError`/`badRequest`/`notFound`/`conflict`, nunca `throw new Error()` cru numa rota.
+- **Auth**: `src/modules/auth/guard.ts` exporta `requireAdmin`/`requireResponsavel`/`requireAuth` (plugins Elysia `.derive`) — ainda **não aplicados** nas rotas de negócio (endpoints hoje são todos públicos pra facilitar teste; aplicar os guards antes da entrega final).
+- **Dados**: `esc_codigo` é sempre `TEXT` (zero à esquerda é significativo). `situacao` de `inscricao_opcao` preserva a grafia exata do dataset real (`Cancelado na confirmacao`, sem acento). Trava de R8 é um índice único parcial no schema (`uq_oferta_ativa_por_inscricao`), não só lógica de aplicação.
+- **Achado de seed**: o campo numérico `tipo` da Query D **não indica tipo de gestão** (checamos: mesmo prefixo de nome aparece nos 3 valores) — `tipo_gestao` é inferido pelo prefixo do nome (`CP ` → Parceria, resto → Direta), com o código bruto preservado em `tipo_origem_raw` só pra auditoria.
 
 ## Notas
 
@@ -63,5 +71,6 @@ Ainda **não scaffolded** — convenções TBD. Preencher esta seção assim que
   - `global-styles-config-mui-overrides.md` — Estilos globais, config & overrides MUI
   - `layout-navigation-settings.md` — Layout, navegação & settings
   - `minimal-ui-kit-reference.md` — Env vars, chamadas de API, autenticação, i18n, Tailwind
+- `docs/desafio/backend-spec.md` — spec completa do backend Elysia (schema DDL-ready, endpoints, como R2/R8 são resolvidos, ordem de implementação sugerida) — gerada antes do scaffold, algumas decisões de auth evoluíram durante a implementação (ver seção Backend acima para o estado real).
 - `docs/SDD.md` — **checklist de trabalho do dia**, não doc de referência estático: varredura de todas as lacunas do repo (frontend, backend, dados, produto, infra, submissão, documentação) com um checklist priorizado por dependência até o prazo das 16h30. Gerado uma vez, ponto-no-tempo — atualizar pontualmente, não regenerar do zero.
 - Este CLAUDE.md deve ser mantido atualizado conforme o projeto evolui — especialmente a seção Decisões acima, e quando o produto for definido e o backend for scaffolded.
