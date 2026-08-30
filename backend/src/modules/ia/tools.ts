@@ -127,7 +127,7 @@ export function criarFerramentasRecomendacao(ctx: FerramentasContext, hooks: Hoo
   const consultarPerfilFamilia = betaZodTool({
     name: 'consultar_perfil_familia',
     description:
-      'Dados da família: todos os endereços cadastrados (moradia, trabalho, alternativos), a criança, o grupamento/turno pretendidos e os sinais de prioridade na classificação. Chame primeiro — as outras tools assumem que você já sabe quais endereços existem.',
+      'Dados da família: todos os endereços cadastrados (moradia, trabalho, alternativo), a criança, o grupamento/turno pretendidos e os sinais de prioridade na classificação. Chame primeiro — as outras tools assumem que você já sabe quais endereços existem.',
     inputSchema: z.object({}),
     run: async () => {
       const elegivel = grupamentoPorIdade(perfil.crianca.data_nascimento, perfil.anoProcesso);
@@ -317,6 +317,7 @@ export function criarFerramentasRecomendacao(ctx: FerramentasContext, hooks: Hoo
           'Considere TODOS os endereços cadastrados, não só a moradia — creche perto do trabalho ou no caminho resolve a rotina de quem leva e busca.',
           'Nunca invente unidade, distância, vaga, percentual ou nome: todo número na explicação tem que ter vindo literalmente de uma tool nesta conversa.',
           'Se houver menos de 5 candidatas viáveis, recomende menos e explique o motivo no resumo.',
+          'Se a família não tiver NENHUM endereço com bairro ou coordenada, as candidatas vêm ordenadas só por chance de vaga, sem critério territorial nenhum: nesse caso é obrigatório incluir em `alertas` que a lista não considerou distância e que completar o endereço no cadastro melhora muito a recomendação.',
         ],
       }),
   });

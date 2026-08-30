@@ -24,11 +24,15 @@ export interface Responsavel {
   trabalho_logradouro: string | null;
   trabalho_numero: string | null;
   trabalho_complemento: string | null;
+  trabalho_latitude: number | null;
+  trabalho_longitude: number | null;
   alternativo_cep: string | null;
   alternativo_bairro: string | null;
   alternativo_logradouro: string | null;
   alternativo_numero: string | null;
   alternativo_complemento: string | null;
+  alternativo_latitude: number | null;
+  alternativo_longitude: number | null;
   nis: string | null;
   bolsa_familia_status: 'sim' | 'nao' | 'nao_consultado';
   bolsa_familia_consultado_em: string | null;
@@ -199,6 +203,29 @@ export async function updateResponsavel(id: string, patch: Partial<CreateRespons
     sets.push('latitude = $latitude', 'longitude = $longitude');
     params.$latitude = coordenadas?.latitude ?? null;
     params.$longitude = coordenadas?.longitude ?? null;
+  }
+
+  // Trabalho e alternativo também precisam de coordenada: são eles que sustentam a
+  // distância por endereço e o desvio de rota casa→trabalho no agente de recomendação
+  // (ver modules/ia/features.ts). Sem isso o endereço entra como texto e não pesa em nada.
+  for (const prefixo of ['trabalho', 'alternativo'] as const) {
+    const campos = CAMPOS_ENDERECO.map(
+      (campo) => `${prefixo}${campo.charAt(0).toUpperCase()}${campo.slice(1)}` as keyof CreateResponsavelInput
+    );
+    if (!campos.some((campo) => campo in patch)) continue;
+
+    const valor = (chave: keyof CreateResponsavelInput, coluna: keyof Responsavel) =>
+      (patch[chave] as string | undefined) ?? (atual[coluna] as string | null);
+
+    const coordenadas = await geocodeEndereco({
+      logradouro: valor(`${prefixo}Logradouro`, `${prefixo}_logradouro`),
+      numero: valor(`${prefixo}Numero`, `${prefixo}_numero`),
+      bairro: valor(`${prefixo}Bairro`, `${prefixo}_bairro`),
+      cep: valor(`${prefixo}Cep`, `${prefixo}_cep`),
+    });
+    sets.push(`${prefixo}_latitude = $${prefixo}Latitude`, `${prefixo}_longitude = $${prefixo}Longitude`);
+    params[`$${prefixo}Latitude`] = coordenadas?.latitude ?? null;
+    params[`$${prefixo}Longitude`] = coordenadas?.longitude ?? null;
   }
 
   if (patch.nis && patch.nis !== atual.nis) {

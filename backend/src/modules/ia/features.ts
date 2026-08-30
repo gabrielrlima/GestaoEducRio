@@ -1,6 +1,5 @@
 import { db } from '../../db/client';
 import { desvioDeRotaKm, distanciaAteRotaKm, haversineKm, type Ponto } from '../../lib/geo';
-import { listEnderecos, type EnderecoResponsavel } from '../responsaveis/enderecos';
 import type { Responsavel } from '../responsaveis/service';
 import { calcularGrupamentoPorIdade, type Crianca } from '../criancas/service';
 import type { Grupamento, Turno } from '../unidades/types';
@@ -16,13 +15,26 @@ import type { Grupamento, Turno } from '../unidades/types';
 // ----------------------------------------------------------------------
 // Perfil da família
 
+export type TipoEndereco = 'moradia' | 'trabalho' | 'alternativo';
+
+/** Um dos três endereços de `responsavel`, normalizado numa forma comum. */
+export interface EnderecoFamilia {
+  tipo: TipoEndereco;
+  rotulo: string;
+  bairro: string | null;
+  logradouro: string | null;
+  latitude: number | null;
+  longitude: number | null;
+}
+
 export interface PerfilFamilia {
   responsavel: Responsavel;
   crianca: Crianca;
-  enderecos: EnderecoResponsavel[];
-  moradia: EnderecoResponsavel | null;
-  trabalho: EnderecoResponsavel | null;
-  alternativos: EnderecoResponsavel[];
+  /** Só os endereços efetivamente preenchidos, moradia primeiro. */
+  enderecos: EnderecoFamilia[];
+  moradia: EnderecoFamilia | null;
+  trabalho: EnderecoFamilia | null;
+  alternativo: EnderecoFamilia | null;
   grupamento?: Grupamento;
   turno?: Turno;
   anoProcesso: number;
@@ -31,8 +43,43 @@ export interface PerfilFamilia {
   bolsaFamilia: 'sim' | 'nao' | 'nao_consultado';
 }
 
-function temCoordenada(e: EnderecoResponsavel | null | undefined): e is EnderecoResponsavel & Ponto {
+/**
+ * Placeholder gravado quando a família ainda não informou o bairro (e também usado nas
+ * unidades sem endereço na fonte). NÃO é um bairro: comparar duas ocorrências dele daria
+ * "mesmo bairro" entre um responsável sem endereço e uma creche sem endereço, produzindo
+ * recomendação do outro lado da cidade — exatamente o R2 que o produto ataca.
+ */
+const BAIRRO_DESCONHECIDO = 'não informado';
+
+function normalizarBairro(bairro: string | null | undefined): string | null {
+  const limpo = bairro?.trim().toLowerCase();
+  if (!limpo || limpo === BAIRRO_DESCONHECIDO) return null;
+  return limpo;
+}
+
+function temCoordenada(e: EnderecoFamilia | null | undefined): e is EnderecoFamilia & Ponto {
   return e != null && e.latitude != null && e.longitude != null;
+}
+
+/**
+ * Um endereço "existe" se tem coordenada OU bairro de verdade — sem nenhum dos dois não
+ * há sinal territorial nenhum e ele só poluiria as distâncias com nulos.
+ */
+function montarEndereco(
+  tipo: TipoEndereco,
+  rotulo: string,
+  dados: { bairro: string | null; logradouro: string | null; latitude: number | null; longitude: number | null }
+): EnderecoFamilia | null {
+  const bairro = normalizarBairro(dados.bairro) ? dados.bairro : null;
+  if (dados.latitude == null && bairro == null) return null;
+  return {
+    tipo,
+    rotulo,
+    bairro,
+    logradouro: dados.logradouro,
+    latitude: dados.latitude,
+    longitude: dados.longitude,
+  };
 }
 
 export function montarPerfil(params: {
@@ -43,7 +90,27 @@ export function montarPerfil(params: {
   anoProcesso: number;
   inscricaoId?: string;
 }): PerfilFamilia {
-  const enderecos = listEnderecos(params.responsavel.id);
+  const r = params.responsavel;
+
+  const moradia = montarEndereco('moradia', 'Moradia', {
+    bairro: r.bairro,
+    logradouro: r.logradouro,
+    latitude: r.latitude,
+    longitude: r.longitude,
+  });
+  const trabalho = montarEndereco('trabalho', 'Trabalho', {
+    bairro: r.trabalho_bairro,
+    logradouro: r.trabalho_logradouro,
+    latitude: r.trabalho_latitude,
+    longitude: r.trabalho_longitude,
+  });
+  const alternativo = montarEndereco('alternativo', 'Endereço alternativo', {
+    bairro: r.alternativo_bairro,
+    logradouro: r.alternativo_logradouro,
+    latitude: r.alternativo_latitude,
+    longitude: r.alternativo_longitude,
+  });
+
   const pontuacao = params.inscricaoId
     ? (db
         .query('SELECT pontuacao_total FROM inscricao WHERE id = $id')
@@ -51,17 +118,17 @@ export function montarPerfil(params: {
     : null;
 
   return {
-    responsavel: params.responsavel,
+    responsavel: r,
     crianca: params.crianca,
-    enderecos,
-    moradia: enderecos.find((e) => e.tipo === 'moradia') ?? null,
-    trabalho: enderecos.find((e) => e.tipo === 'trabalho') ?? null,
-    alternativos: enderecos.filter((e) => e.tipo === 'alternativo'),
+    enderecos: [moradia, trabalho, alternativo].filter((e) => e != null),
+    moradia,
+    trabalho,
+    alternativo,
     grupamento: params.grupamento,
     turno: params.turno,
     anoProcesso: params.anoProcesso,
     pontuacaoTotal: pontuacao?.pontuacao_total ?? null,
-    bolsaFamilia: params.responsavel.bolsa_familia_status,
+    bolsaFamilia: r.bolsa_familia_status,
   };
 }
 
@@ -97,7 +164,7 @@ export interface DistanciasUnidade {
   mesmoBairroTrabalho: boolean;
 }
 
-function distanciaSePossivel(origem: EnderecoResponsavel | null, unidade: Ponto | null): number | null {
+function distanciaSePossivel(origem: EnderecoFamilia | null, unidade: Ponto | null): number | null {
   if (!temCoordenada(origem) || !unidade) return null;
   return haversineKm(origem.latitude, origem.longitude, unidade.latitude, unidade.longitude);
 }
@@ -113,31 +180,30 @@ export function calcularDistancias(
 
   const moradiaKm = distanciaSePossivel(perfil.moradia, ponto);
   const trabalhoKm = distanciaSePossivel(perfil.trabalho, ponto);
-
-  let alternativoKm: number | null = null;
-  let alternativoRotulo: string | null = null;
-  for (const alternativo of perfil.alternativos) {
-    const km = distanciaSePossivel(alternativo, ponto);
-    if (km != null && (alternativoKm == null || km < alternativoKm)) {
-      alternativoKm = km;
-      alternativoRotulo = alternativo.rotulo;
-    }
-  }
+  const alternativoKm = distanciaSePossivel(perfil.alternativo, ponto);
 
   const candidatos: Array<{ km: number; rotulo: string }> = [];
   if (moradiaKm != null) candidatos.push({ km: moradiaKm, rotulo: 'moradia' });
   if (trabalhoKm != null) candidatos.push({ km: trabalhoKm, rotulo: 'trabalho' });
-  if (alternativoKm != null) candidatos.push({ km: alternativoKm, rotulo: alternativoRotulo ?? 'alternativo' });
+  if (alternativoKm != null) candidatos.push({ km: alternativoKm, rotulo: 'alternativo' });
   const maisProximo = candidatos.sort((a, b) => a.km - b.km)[0] ?? null;
 
   const temRota = temCoordenada(perfil.moradia) && temCoordenada(perfil.trabalho) && ponto != null;
-  const normalizar = (b: string | null) => (b ?? '').trim().toLowerCase();
+
+  // `normalizarBairro` devolve null pro placeholder "Não informado", então duas ausências
+  // nunca contam como "mesmo bairro" — sem isso a família sem endereço casaria com as 128
+  // unidades ativas que também estão sem bairro na fonte.
+  const bairroUnidade = normalizarBairro(unidade.bairro);
+  const mesmoBairro = (endereco: EnderecoFamilia | null) => {
+    const bairroFamilia = normalizarBairro(endereco?.bairro);
+    return bairroFamilia != null && bairroUnidade != null && bairroFamilia === bairroUnidade;
+  };
 
   return {
     moradiaKm,
     trabalhoKm,
     alternativoKm,
-    alternativoRotulo,
+    alternativoRotulo: alternativoKm != null ? (perfil.alternativo?.rotulo ?? null) : null,
     menorKm: maisProximo?.km ?? null,
     enderecoMaisProximo: maisProximo?.rotulo ?? null,
     desvioRotaCasaTrabalhoKm: temRota
@@ -146,12 +212,8 @@ export function calcularDistancias(
     distanciaAteRotaKm: temRota
       ? distanciaAteRotaKm(perfil.moradia as Ponto, perfil.trabalho as Ponto, ponto!)
       : null,
-    mesmoBairroMoradia:
-      normalizar(perfil.moradia?.bairro ?? null) !== '' &&
-      normalizar(perfil.moradia?.bairro ?? null) === normalizar(unidade.bairro),
-    mesmoBairroTrabalho:
-      normalizar(perfil.trabalho?.bairro ?? null) !== '' &&
-      normalizar(perfil.trabalho?.bairro ?? null) === normalizar(unidade.bairro),
+    mesmoBairroMoradia: mesmoBairro(perfil.moradia),
+    mesmoBairroTrabalho: mesmoBairro(perfil.trabalho),
   };
 }
 
@@ -432,18 +494,28 @@ export function buscarCandidatas(
   });
 
   const familiaTemCoordenada = perfil.enderecos.some((e) => e.latitude != null);
+  const familiaTemBairro = perfil.enderecos.some((e) => normalizarBairro(e.bairro) != null);
 
-  const noRaio = enriquecidas.filter((c) => {
-    if (c.disponibilidade.vagasDisponiveis <= 0) return false;
-    if (!familiaTemCoordenada) {
-      // Sem geocodificação de nenhum lado, o bairro é o único sinal territorial que resta.
-      return c.distancias.mesmoBairroMoradia || c.distancias.mesmoBairroTrabalho;
-    }
-    if (c.distancias.menorKm == null) return false;
-    return c.distancias.menorKm <= raioKm;
-  });
+  const comVaga = enriquecidas.filter((c) => c.disponibilidade.vagasDisponiveis > 0);
 
-  return noRaio.sort((a, b) => ordenar(a, b, criterio)).slice(0, limite);
+  if (familiaTemCoordenada) {
+    return comVaga
+      .filter((c) => c.distancias.menorKm != null && c.distancias.menorKm <= raioKm)
+      .sort((a, b) => ordenar(a, b, criterio))
+      .slice(0, limite);
+  }
+
+  if (familiaTemBairro) {
+    // Sem geocodificação, o bairro é o único sinal territorial que resta.
+    return comVaga
+      .filter((c) => c.distancias.mesmoBairroMoradia || c.distancias.mesmoBairroTrabalho)
+      .sort((a, b) => ordenar(a, b, criterio))
+      .slice(0, limite);
+  }
+
+  // Nenhum sinal territorial: ordenar por "proximidade" aqui seria inventar uma ordem.
+  // Devolve as de maior chance, e o agente avisa a família que falta endereço.
+  return comVaga.sort((a, b) => ordenar(a, b, 'chance')).slice(0, limite);
 }
 
 export function getCandidata(perfil: PerfilFamilia, unidadeId: string): CandidataEnriquecida | null {

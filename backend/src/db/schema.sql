@@ -54,39 +54,20 @@ CREATE TABLE IF NOT EXISTS responsavel (
   trabalho_logradouro   TEXT,
   trabalho_numero       TEXT,
   trabalho_complemento  TEXT,
+  trabalho_latitude     REAL,           -- geocodificado junto com o endereço; sem isso não há distância nem rota
+  trabalho_longitude    REAL,
   alternativo_cep          TEXT,        -- endereço alternativo (ex.: casa de familiar) — opcional
   alternativo_bairro       TEXT,
   alternativo_logradouro   TEXT,
   alternativo_numero       TEXT,
   alternativo_complemento  TEXT,
+  alternativo_latitude     REAL,
+  alternativo_longitude    REAL,
   nis                          TEXT,     -- Número de Identificação Social, opcional — usado só pra consultar Bolsa Família
   bolsa_familia_status         TEXT CHECK (bolsa_familia_status IN ('sim','nao','nao_consultado')) NOT NULL DEFAULT 'nao_consultado',
   bolsa_familia_consultado_em  TEXT,
   criado_em         TEXT NOT NULL DEFAULT (datetime('now'))
 );
-
--- Endereços adicionais do responsável (moradia é espelhada aqui a partir dos campos de
--- `responsavel` por compatibilidade; trabalho/alternativo só existem aqui). O agente de
--- recomendação usa TODOS eles: distância por endereço, desvio de rota casa→trabalho, etc.
--- Ver backend/src/modules/ia/tools.ts.
-CREATE TABLE IF NOT EXISTS endereco_responsavel (
-  id              TEXT PRIMARY KEY,
-  responsavel_id  TEXT NOT NULL REFERENCES responsavel(id),
-  tipo            TEXT NOT NULL CHECK (tipo IN ('moradia','trabalho','alternativo')),
-  rotulo          TEXT,                 -- livre: "casa da avó", "escritório", ...
-  cep             TEXT,
-  logradouro      TEXT,
-  numero          TEXT,
-  complemento     TEXT,
-  bairro          TEXT,
-  latitude        REAL,
-  longitude       REAL,
-  criado_em       TEXT NOT NULL DEFAULT (datetime('now')),
-  -- 1 moradia e 1 trabalho por responsável; alternativos podem ser vários
-  UNIQUE (responsavel_id, tipo, rotulo)
-);
-
-CREATE INDEX IF NOT EXISTS idx_endereco_responsavel ON endereco_responsavel(responsavel_id);
 
 -- Agregado histórico por unidade × ano × grupamento × turno, derivado da Query A do dataset
 -- oficial (01_QueryA_InscricoesPorAno.csv.gz, 837k linhas / 2021-2025) pelo seed

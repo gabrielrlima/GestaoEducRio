@@ -85,14 +85,20 @@ const PERSONAS: Persona[] = [
   },
 ];
 
-/** Cria responsável + criança + endereços direto no banco (sem geocodificar). */
+/** Cria responsável + criança direto no banco, com os 3 endereços já geocodificados. */
 function semear(persona: Persona): { responsavel: Responsavel; crianca: Crianca; limpar: () => void } {
   const responsavelId = randomUUID();
   const criancaId = randomUUID();
 
   db.query(
-    `INSERT INTO responsavel (id, cpf, nome, data_nascimento, email, bairro, logradouro, latitude, longitude, bolsa_familia_status)
-     VALUES ($id, $cpf, $nome, '1992-05-10', $email, $bairro, $logradouro, $lat, $lng, $bolsa)`
+    `INSERT INTO responsavel
+       (id, cpf, nome, data_nascimento, email, bairro, logradouro, latitude, longitude,
+        trabalho_bairro, trabalho_logradouro, trabalho_latitude, trabalho_longitude,
+        alternativo_bairro, alternativo_latitude, alternativo_longitude, bolsa_familia_status)
+     VALUES
+       ($id, $cpf, $nome, '1992-05-10', $email, $bairro, $logradouro, $lat, $lng,
+        $trabalhoBairro, $trabalhoLogradouro, $trabalhoLat, $trabalhoLng,
+        $alternativoBairro, $alternativoLat, $alternativoLng, $bolsa)`
   ).run({
     $id: responsavelId,
     $cpf: String(Date.now()).slice(-11),
@@ -102,38 +108,15 @@ function semear(persona: Persona): { responsavel: Responsavel; crianca: Crianca;
     $logradouro: persona.moradia.logradouro,
     $lat: persona.moradia.latitude,
     $lng: persona.moradia.longitude,
+    $trabalhoBairro: persona.trabalho?.bairro ?? null,
+    $trabalhoLogradouro: persona.trabalho?.logradouro ?? null,
+    $trabalhoLat: persona.trabalho?.latitude ?? null,
+    $trabalhoLng: persona.trabalho?.longitude ?? null,
+    $alternativoBairro: persona.alternativo?.bairro ?? null,
+    $alternativoLat: persona.alternativo?.latitude ?? null,
+    $alternativoLng: persona.alternativo?.longitude ?? null,
     $bolsa: persona.bolsaFamilia ? 'sim' : 'nao_consultado',
   });
-
-  const inserirEndereco = db.query(
-    `INSERT INTO endereco_responsavel (id, responsavel_id, tipo, rotulo, logradouro, bairro, latitude, longitude)
-     VALUES ($id, $responsavelId, $tipo, $rotulo, $logradouro, $bairro, $lat, $lng)`
-  );
-
-  if (persona.trabalho) {
-    inserirEndereco.run({
-      $id: randomUUID(),
-      $responsavelId: responsavelId,
-      $tipo: 'trabalho',
-      $rotulo: 'Trabalho',
-      $logradouro: persona.trabalho.logradouro,
-      $bairro: persona.trabalho.bairro,
-      $lat: persona.trabalho.latitude,
-      $lng: persona.trabalho.longitude,
-    });
-  }
-  if (persona.alternativo) {
-    inserirEndereco.run({
-      $id: randomUUID(),
-      $responsavelId: responsavelId,
-      $tipo: 'alternativo',
-      $rotulo: persona.alternativo.rotulo,
-      $logradouro: null,
-      $bairro: persona.alternativo.bairro,
-      $lat: persona.alternativo.latitude,
-      $lng: persona.alternativo.longitude,
-    });
-  }
 
   // Idade coerente com o grupamento pedido (régua de `calcularGrupamentoPorIdade`:
   // <24 meses Berçário, <36 Maternal I, senão Maternal II), pra não disparar alerta de
@@ -162,7 +145,6 @@ function semear(persona: Persona): { responsavel: Responsavel; crianca: Crianca;
       ).run({ $id: responsavelId });
       db.query('DELETE FROM ia_recomendacao WHERE responsavel_id = $id').run({ $id: responsavelId });
       db.query('DELETE FROM crianca WHERE responsavel_id = $id').run({ $id: responsavelId });
-      db.query('DELETE FROM endereco_responsavel WHERE responsavel_id = $id').run({ $id: responsavelId });
       db.query('DELETE FROM responsavel WHERE id = $id').run({ $id: responsavelId });
     },
   };

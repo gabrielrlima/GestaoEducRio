@@ -17,7 +17,9 @@ export type RecomendacaoDeterministica = Omit<RecomendacaoFinal, 'recomendacoes'
   recomendacoes: RecomendacaoFinal['recomendacoes'];
 };
 
-const km = (valor: number) => `${valor.toFixed(1).replace('.', ',')} km`;
+/** Separador decimal pt-BR — usado em TODO número do texto, km e percentual. */
+const numero = (valor: number, casas = 1) => valor.toFixed(casas).replace('.', ',');
+const km = (valor: number) => `${numero(valor)} km`;
 
 /** Parágrafo por template, na mesma voz do agente: sempre 2-3 frases com números reais. */
 function explicar(c: CandidataEnriquecida): string {
@@ -44,7 +46,7 @@ function explicar(c: CandidataEnriquecida): string {
   const h = c.disponibilidade.historico;
   if (h) {
     frases.push(
-      `Historicamente, ${h.chanceHistoricaConvocacaoPct}% de quem se inscreveu aqui chegou a ser convocado nos últimos ${h.anosCobertos} processos — disponibilidade ${h.classeDisponibilidade} para a região.`
+      `Historicamente, ${numero(h.chanceHistoricaConvocacaoPct)}% de quem se inscreveu aqui chegou a ser convocado nos últimos ${h.anosCobertos} processos — disponibilidade ${h.classeDisponibilidade} para a região.`
     );
   }
 

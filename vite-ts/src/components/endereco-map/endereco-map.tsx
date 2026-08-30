@@ -11,8 +11,8 @@ import iconSets from 'src/components/iconify/icon-sets';
 // ----------------------------------------------------------------------
 // Mapa minimalista (Leaflet + tiles OpenStreetMap, sem API key) pra mostrar a unidade de
 // creche junto com TODOS os endereços cadastrados do responsável — moradia, trabalho e
-// alternativos (ver backend/src/db/schema.sql, tabela `endereco_responsavel`; a moradia
-// vem dos campos do próprio `responsavel`). Cada tipo tem cor e ícone próprios.
+// alternativo (colunas `latitude`, `trabalho_latitude` e `alternativo_latitude` da tabela
+// `responsavel`, ver backend/src/db/schema.sql). Cada tipo tem cor e ícone próprios.
 //
 // Quando existem moradia e trabalho, o mapa também traça o trajeto entre os dois e
 // enquadra a rota inteira, pra família enxergar ONDE a creche cai nesse desenho — que é

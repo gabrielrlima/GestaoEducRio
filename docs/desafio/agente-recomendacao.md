@@ -19,8 +19,8 @@ Regra de projeto: **a IA não calcula nada**. Todo número mora em `features.ts`
 | Sinal | Origem | Onde |
 |---|---|---|
 | Coordenadas da unidade | `Unidades_Unificadas_com_Localizacao.xlsx` | `unidade.latitude/longitude` |
-| Coordenadas da família | Nominatim, no cadastro de cada endereço | `responsavel.*` + `endereco_responsavel` |
-| Vagas do ano corrente | capacidade **sintética** (não há fonte real granular — ver `planilhas-dicionario.md`) | `vaga_config` |
+| Coordenadas da família | Nominatim, no cadastro de cada endereço | `responsavel.{,trabalho_,alternativo_}latitude/longitude` |
+| Vagas do ano corrente | reais onde a fonte tem (`Parceiras2025.xlsx`); estimadas por `Turma × 24,67` nas diretas — ver `seed-vagas-real.ts` | `vaga_config` |
 | Histórico de convocação e vacância | **Query A**, 837k linhas, 2021-2025 | `unidade_historico` → `unidade_disponibilidade` |
 
 O seed `src/seed/seed-historico.ts` lê a Query A em streaming (~3s) e casa 100% das chaves com o cadastro: 8.422 linhas de histórico, 2.576 combinações unidade × grupamento × turno, cobrindo as 872 unidades que tiveram inscrição real.
@@ -42,11 +42,15 @@ Determinística, calculada no seed: dentro de cada **grupamento × turno**, as u
 
 ## Endereços múltiplos
 
-`endereco_responsavel` guarda **trabalho** e **alternativos** (casa da avó, casa do outro responsável). A **moradia** continua sendo os campos do próprio `responsavel` e é sintetizada na leitura — evita duas fontes da verdade divergirem.
+Os três endereços (**moradia**, **trabalho**, **alternativo**) são colunas de `responsavel` — `bairro`/`logradouro`/`numero`/`cep`/`complemento` e `latitude`/`longitude` para cada um, todos geocodificados por Nominatim em `updateResponsavel`. `montarPerfil` normaliza os três numa lista `EnderecoFamilia` e descarta os que não têm nem coordenada nem bairro.
+
+> Esta branch chegou a ter uma tabela `endereco_responsavel` (que permitia N alternativos com rótulo livre) antes de a `main` resolver o mesmo problema com colunas. Ficamos com o modelo da `main`, que já tinha UI no portal; o `migrate.ts` derruba a tabela órfã.
+
+**`'Não informado'` não é um bairro.** É o placeholder gravado quando a família não informou endereço — e também o de 128 unidades ativas sem endereço na fonte. Comparar as duas ocorrências como texto daria "mesmo bairro" entre uma família sem endereço e creches espalhadas pela cidade, produzindo exatamente o R2 que o produto ataca. `normalizarBairro` mapeia o placeholder para `null`, e sem nenhum sinal territorial `buscarCandidatas` ordena por chance de vaga em vez de fingir proximidade — com o agente obrigado a avisar a família disso em `alertas`.
 
 Para cada unidade, `calcularDistancias` produz:
 
-- distância de casa, do trabalho e do alternativo mais próximo;
+- distância de casa, do trabalho e do alternativo;
 - `menorKm` + qual endereço é o mais próximo (o filtro de raio usa este, não a moradia: uma creche longe de casa mas colada no trabalho é uma opção legítima que o matricula.rio hoje não enxerga);
 - **`desvioRotaCasaTrabalhoKm`** = `d(casa,creche) + d(creche,trabalho) − d(casa,trabalho)` — quanto a família andaria a mais **por dia** passando pela creche. Responde "essa creche fica no meu caminho?" melhor que qualquer distância isolada;
 - **`distanciaAteRotaKm`** — afastamento lateral da linha casa→trabalho (projeção ponto-segmento num plano local em km; o erro da aproximação equirretangular na escala do município é desprezível).
@@ -104,3 +108,18 @@ Sem `ANTHROPIC_API_KEY`, com a API falhando ou com o loop expirando, `recomendar
 As personas cobrem trajeto curto (Tijuca→Centro), trajeto longo (Bangu→Barra), só moradia (Campo Grande), três endereços (Madureira + Centro + casa da avó) e **endereço sem geocodificação** (Irajá) — este último é o caso em que o agente precisa degradar para comparação por bairro sem inventar quilometragem.
 
 Variantes de prompt em `prompts.ts`: `minimo` (baseline), `procedimental` (fixa a sequência de tools e a estratégia de portfólio) e `criterios` (descreve o que é uma boa recomendação e deixa o modelo planejar). `PROMPT_PADRAO` aponta para a vencedora da última rodada.
+
+### Resultado da última rodada
+
+| Variante | Nota média | Finalizou | Tool calls | Usou rota | Violações | Latência |
+|---|---|---|---|---|---|---|
+| `minimo` | 92,4 | 5/5 | 7,8 | 2/3 | 0 | 25,5s |
+| **`procedimental`** | **96,0** | 5/5 | 8,6 | 3/3 | 0 | 30,2s |
+| `criterios` | 95,0 | 5/5 | 8,2 | 3/3 | 0 | 30,2s |
+
+**`procedimental` venceu** e é o `PROMPT_PADRAO`: única sem nenhuma queda abaixo de 90 e a única que chamou `unidades_no_caminho` nas 3 personas em que ela se aplica — o `minimo` perdeu justamente o diferencial do produto uma vez. Custa ~5s a mais.
+
+Duas leituras honestas desses números:
+
+1. **Zero violações de grounding em 15 execuções**, incluindo na persona sem coordenada. A distância entre a melhor e a pior variante é de 4 pontos, o que sugere que o trabalho pesado está nas **descrições das tools** e no schema de saída, não na prosa do system prompt — resultado bom, porque descrição de tool é mais estável do que prompt.
+2. A métrica de portfólio original reprovava igualmente as três variantes em duas personas, sinal de que media o **cenário**, não a decisão: na persona sem geocodificação não existe nenhuma unidade de chance alta no bairro para escolher. `avaliarPortfolio` só cobra "incluiu uma de chance alta" quando havia alguma no universo. Depois desse ajuste e da migração para o modelo de endereços da `main`, `procedimental` mede **97,0** com portfólio ok em 4/5.

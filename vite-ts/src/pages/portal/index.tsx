@@ -1,23 +1,25 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 
 import Box from '@mui/material/Box';
 import Tab from '@mui/material/Tab';
 import Card from '@mui/material/Card';
-import Chip from '@mui/material/Chip';
 import Grid from '@mui/material/Grid';
 import Tabs from '@mui/material/Tabs';
 import Alert from '@mui/material/Alert';
 import Stack from '@mui/material/Stack';
+import Radio from '@mui/material/Radio';
 import Button from '@mui/material/Button';
+import Collapse from '@mui/material/Collapse';
 import { useTheme } from '@mui/material/styles';
 import Container from '@mui/material/Container';
 import TextField from '@mui/material/TextField';
+import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
-import Radio from '@mui/material/Radio';
-import LoadingButton from '@mui/lab/LoadingButton';
 import RadioGroup from '@mui/material/RadioGroup';
+import LoadingButton from '@mui/lab/LoadingButton';
 import FormControl from '@mui/material/FormControl';
 import useMediaQuery from '@mui/material/useMediaQuery';
+import Chip, { type ChipProps } from '@mui/material/Chip';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import CircularProgress from '@mui/material/CircularProgress';
 
@@ -32,15 +34,21 @@ import {
   cadastrarCrianca,
   getStatusCrianca,
   unidadesProximas,
+  type Responsavel,
+  type RecomendacaoIA,
   type UnidadeProxima,
   cadastrarResponsavel,
   atualizarResponsavel,
+  recomendarUnidadesIA,
   type StatusConsolidado,
+  type BadgeRecomendacao,
   solicitarCodigoResponsavel,
   verificarCodigoResponsavel,
 } from 'src/lib/creche-api';
 
 import { Logo } from 'src/components/logo';
+import { Iconify } from 'src/components/iconify';
+import { EnderecoMap, type EnderecoMapMarcador } from 'src/components/endereco-map/endereco-map';
 
 // ----------------------------------------------------------------------
 
@@ -205,6 +213,7 @@ export default function PortalPage() {
                 <SeletorCrianca criancas={criancas} ativaId={criancaAtivaId} onSelecionar={irParaEscolhaOuStatus} />
                 <EtapaEscolhaUnidades
                   crianca={criancaAtiva}
+                  responsavelId={responsavelId}
                   bairroResponsavel={bairroResponsavel}
                   onConcluida={() => irParaEscolhaOuStatus(criancaAtiva.id)}
                 />
@@ -873,27 +882,129 @@ function SeletorCrianca({
 
 // ----------------------------------------------------------------------
 
+const COR_DO_BADGE: Record<BadgeRecomendacao, ChipProps['color']> = {
+  'Alta chance de vaga': 'success',
+  'Muitas vagas abertas': 'success',
+  'Mais perto de casa': 'primary',
+  'Mais perto do trabalho': 'info',
+  'No caminho para o trabalho': 'info',
+  'Perto do endereço alternativo': 'info',
+  'Melhor equilíbrio': 'secondary',
+};
+
+/** O backend pode ganhar um badge novo antes do front — nesse caso cai na cor padrão. */
+function corDoBadge(badge: string): ChipProps['color'] {
+  return COR_DO_BADGE[badge as BadgeRecomendacao] ?? 'default';
+}
+
+/**
+ * Pinos dos endereços da família a partir do cadastro do responsável (moradia, trabalho e
+ * alternativo são colunas de `responsavel`). Só entra quem tem coordenada: sem lat/lng o
+ * Leaflet não tem onde desenhar, e é a coordenada que também sustenta o traçado
+ * casa→trabalho que o EnderecoMap monta sozinho.
+ */
+function marcadoresDoResponsavel(r: Responsavel): EnderecoMapMarcador[] {
+  const enderecos = [
+    {
+      tipo: 'moradia' as const,
+      rotulo: 'Moradia',
+      detalhe: r.logradouro ?? r.bairro,
+      latitude: r.latitude,
+      longitude: r.longitude,
+    },
+    {
+      tipo: 'trabalho' as const,
+      rotulo: 'Trabalho',
+      detalhe: r.trabalho_logradouro ?? r.trabalho_bairro,
+      latitude: r.trabalho_latitude,
+      longitude: r.trabalho_longitude,
+    },
+    {
+      tipo: 'alternativo' as const,
+      rotulo: 'Endereço alternativo',
+      detalhe: r.alternativo_logradouro ?? r.alternativo_bairro,
+      latitude: r.alternativo_latitude,
+      longitude: r.alternativo_longitude,
+    },
+  ];
+
+  return enderecos
+    .filter((e) => e.latitude != null && e.longitude != null)
+    .map((e) => ({
+      id: `endereco-${e.tipo}`,
+      label: e.detalhe?.trim() ? `${e.rotulo} — ${e.detalhe}` : e.rotulo,
+      latitude: e.latitude as number,
+      longitude: e.longitude as number,
+      tipo: e.tipo,
+    }));
+}
+
 function EtapaEscolhaUnidades({
   crianca,
+  responsavelId,
   bairroResponsavel,
   onConcluida,
 }: {
   crianca: Crianca;
+  responsavelId: string;
   bairroResponsavel: string;
   onConcluida: () => void;
 }) {
   const [candidatas, setCandidatas] = useState<UnidadeProxima[]>([]);
+  const [responsavel, setResponsavel] = useState<Responsavel | null>(null);
   const [selecionadas, setSelecionadas] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [expandidas, setExpandidas] = useState<string[]>([]);
+
+  const [recomendacaoIA, setRecomendacaoIA] = useState<RecomendacaoIA | null>(null);
+  const [pedindoRecomendacao, setPedindoRecomendacao] = useState(false);
+  const [erroRecomendacao, setErroRecomendacao] = useState<string | null>(null);
 
   useEffect(() => {
-    unidadesProximas({ bairro: bairroResponsavel, anoProcesso: ANO_PROCESSO })
+    setLoading(true);
+    // Busca o cadastro pra ter as coordenadas (dos 3 endereços, pro mapa; da moradia, pra
+    // ordenar por distância real em vez de só por bairro).
+    getResponsavel(responsavelId)
+      .then((r) => {
+        setResponsavel(r);
+        return unidadesProximas({
+          bairro: r.bairro,
+          lat: r.latitude ?? undefined,
+          lng: r.longitude ?? undefined,
+          anoProcesso: ANO_PROCESSO,
+        });
+      })
       .then(setCandidatas)
       .finally(() => setLoading(false));
-  }, [bairroResponsavel]);
+  }, [responsavelId]);
+
+  // Pinos dos endereços: iguais em todos os cards, então calcula uma vez só.
+  const marcadoresEnderecos = useMemo<EnderecoMapMarcador[]>(
+    () => (responsavel ? marcadoresDoResponsavel(responsavel) : []),
+    [responsavel]
+  );
+
+  const pedirRecomendacaoIA = async () => {
+    setErroRecomendacao(null);
+    setPedindoRecomendacao(true);
+    try {
+      // Sem `grupamento`/`turno`: o backend deriva o grupamento pela idade da criança,
+      // com a mesma régua que `criarInscricao` aplica depois.
+      const resultado = await recomendarUnidadesIA({
+        responsavelId,
+        criancaId: crianca.id,
+        anoProcesso: ANO_PROCESSO,
+      });
+      setRecomendacaoIA(resultado);
+    } catch (e) {
+      setErroRecomendacao((e as Error).message);
+    } finally {
+      setPedindoRecomendacao(false);
+    }
+  };
 
   const alternarSelecao = (unidadeId: string) => {
     setSelecionadas((atual) => {
@@ -902,6 +1013,21 @@ function EtapaEscolhaUnidades({
       return [...atual, unidadeId];
     });
   };
+
+  const alternarExpandida = (unidadeId: string) => {
+    setExpandidas((atual) =>
+      atual.includes(unidadeId) ? atual.filter((id) => id !== unidadeId) : [...atual, unidadeId]
+    );
+  };
+
+  // Recomendadas pela IA sobem pro topo (mantendo a ordenação por proximidade dentro de
+  // cada grupo) — todas as unidades continuam na lista, só reordena.
+  const candidatasOrdenadas = [...candidatas].sort((a, b) => {
+    const aRecomendada = recomendacaoIA?.recomendacoes.some((r) => r.unidadeId === a.unidadeId) ?? false;
+    const bRecomendada = recomendacaoIA?.recomendacoes.some((r) => r.unidadeId === b.unidadeId) ?? false;
+    if (aRecomendada !== bRecomendada) return aRecomendada ? -1 : 1;
+    return 0;
+  });
 
   const confirmarInscricao = async () => {
     setErro(null);
@@ -942,36 +1068,137 @@ function EtapaEscolhaUnidades({
         </Alert>
       )}
 
+      <Card variant="outlined" sx={{ p: 2, bgcolor: 'background.neutral' }}>
+        <Stack spacing={1.5}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Typography variant="subtitle2">Recomendação por IA</Typography>
+            <LoadingButton size="small" loading={pedindoRecomendacao} onClick={pedirRecomendacaoIA}>
+              {recomendacaoIA ? 'Pedir de novo' : 'Pedir recomendação'}
+            </LoadingButton>
+          </Stack>
+
+          {pedindoRecomendacao && (
+            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+              O agente está lendo seus endereços, calculando distâncias e conferindo o histórico de cada unidade —
+              leva uns 30s…
+            </Typography>
+          )}
+          {erroRecomendacao && <Alert severity="error">{erroRecomendacao}</Alert>}
+          {recomendacaoIA && (
+            <>
+              <Alert severity={recomendacaoIA.fonte === 'ia' ? 'success' : 'info'}>
+                {recomendacaoIA.resumo}
+                <Chip
+                  size="small"
+                  sx={{ ml: 1 }}
+                  label={recomendacaoIA.fonte === 'ia' ? 'gerado pela IA' : 'fallback determinístico'}
+                />
+              </Alert>
+
+              {recomendacaoIA.alertas?.map((alerta, i) => (
+                <Alert key={i} severity="warning">
+                  {alerta}
+                </Alert>
+              ))}
+
+              <Button
+                size="small"
+                onClick={() => setSelecionadas(recomendacaoIA.recomendacoes.slice(0, 5).map((r) => r.unidadeId))}
+              >
+                Selecionar as recomendadas
+              </Button>
+            </>
+          )}
+        </Stack>
+      </Card>
+
       <Grid container spacing={1.5}>
-        {candidatas.map((c, index) => {
+        {candidatasOrdenadas.map((c) => {
           const selecionadaIndex = selecionadas.indexOf(c.unidadeId);
           const selecionada = selecionadaIndex >= 0;
+          const recomendacao = recomendacaoIA?.recomendacoes.find((r) => r.unidadeId === c.unidadeId);
+          const expandida = expandidas.includes(c.unidadeId);
+
+          // A unidade vem primeiro: o EnderecoMap usa o primeiro marcador como centro
+          // inicial, antes do fitBounds enquadrar tudo (pinos + traçado casa→trabalho).
+          const marcadores: EnderecoMapMarcador[] = [
+            ...(c.latitude != null && c.longitude != null
+              ? [
+                  {
+                    id: `unidade-${c.unidadeId}`,
+                    label: c.nome,
+                    latitude: c.latitude,
+                    longitude: c.longitude,
+                    tipo: 'unidade' as const,
+                  },
+                ]
+              : []),
+            ...marcadoresEnderecos,
+          ];
+
           return (
             <Grid size={12} key={c.unidadeId}>
               <Card
                 variant="outlined"
                 sx={{
-                  p: 2,
-                  cursor: 'pointer',
                   borderColor: selecionada ? 'primary.main' : undefined,
                   bgcolor: selecionada ? 'primary.lighter' : undefined,
                 }}
-                onClick={() => alternarSelecao(c.unidadeId)}
               >
-                <Stack direction="row" justifyContent="space-between" alignItems="center">
-                  <Stack>
-                    <Typography variant="subtitle2">
-                      {selecionada ? `${selecionadaIndex + 1}º — ` : ''}
-                      {c.nome}
-                    </Typography>
+                <Stack
+                  direction="row"
+                  justifyContent="space-between"
+                  alignItems="center"
+                  sx={{ p: 2, cursor: 'pointer' }}
+                  onClick={() => alternarSelecao(c.unidadeId)}
+                >
+                  <Stack sx={{ flex: 1 }}>
+                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                      <Typography variant="subtitle2">
+                        {selecionada ? `${selecionadaIndex + 1}º — ` : ''}
+                        {c.nome}
+                      </Typography>
+                      {/* O badge é o rótulo informativo (por que ESTA unidade se destaca);
+                          o "Recomendada pela IA" fica em soft pra não competir com ele. */}
+                      {recomendacao?.badge && (
+                        <Chip size="small" color={corDoBadge(recomendacao.badge)} label={recomendacao.badge} />
+                      )}
+                      {recomendacao && <Chip size="small" variant="soft" color="success" label="Recomendada pela IA" />}
+                    </Stack>
                     <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                       {c.bairro}
                       {c.distanciaKm != null ? ` · ${c.distanciaKm.toFixed(1)} km` : c.mesmoBairro ? ' · mesmo bairro' : ''}
                       {' · '}
                       {c.vagasDisponiveis} vaga(s) disponíveis
                     </Typography>
+                    {/* `porque` é um parágrafo de 2-3 frases, não uma linha — body2 em vez
+                        de caption pra ficar legível. */}
+                    {recomendacao && (
+                      <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.75 }}>
+                        {recomendacao.porque}
+                      </Typography>
+                    )}
                   </Stack>
+
+                  <IconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      alternarExpandida(c.unidadeId);
+                    }}
+                  >
+                    <Iconify
+                      icon="eva:arrow-ios-downward-fill"
+                      sx={{ transform: expandida ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}
+                    />
+                  </IconButton>
                 </Stack>
+
+                <Collapse in={expandida} unmountOnExit>
+                  <Box sx={{ px: 2, pb: 2 }}>
+                    <EnderecoMap marcadores={marcadores} />
+                  </Box>
+                </Collapse>
               </Card>
             </Grid>
           );
