@@ -59,8 +59,11 @@ export default function PortalPage() {
   const [etapaMaxima, setEtapaMaxima] = useState<Etapa>(0);
   const [responsavelId, setResponsavelId] = useState<string | null>(null);
   const [bairroResponsavel, setBairroResponsavel] = useState('');
-  const [crianca, setCrianca] = useState<Crianca | null>(null);
+  const [criancas, setCriancas] = useState<Crianca[]>([]);
+  const [criancaAtivaId, setCriancaAtivaId] = useState<string | null>(null);
   const [status, setStatus] = useState<StatusConsolidado | null>(null);
+
+  const criancaAtiva = criancas.find((c) => c.id === criancaAtivaId) ?? null;
 
   useEffect(() => {
     if (getToken('responsavel')) {
@@ -75,6 +78,7 @@ export default function PortalPage() {
 
   const irParaEscolhaOuStatus = useCallback(
     async (idCrianca: string) => {
+      setCriancaAtivaId(idCrianca);
       const s = await getStatusCrianca(idCrianca);
       setStatus(s);
       irParaEtapa(s.inscricaoAtiva ? 4 : 3);
@@ -185,20 +189,28 @@ export default function PortalPage() {
             {etapa === 2 && (
               <EtapaCadastroCrianca
                 responsavelId={responsavelId}
-                onCriada={(c) => {
-                  setCrianca(c);
-                  irParaEscolhaOuStatus(c.id);
+                onContinuar={(todas) => {
+                  setCriancas(todas);
+                  irParaEscolhaOuStatus(todas[0].id);
                 }}
               />
             )}
-            {etapa === 3 && crianca && (
-              <EtapaEscolhaUnidades
-                crianca={crianca}
-                bairroResponsavel={bairroResponsavel}
-                onConcluida={() => irParaEscolhaOuStatus(crianca.id)}
-              />
+            {etapa === 3 && criancaAtiva && (
+              <>
+                <SeletorCrianca criancas={criancas} ativaId={criancaAtivaId} onSelecionar={irParaEscolhaOuStatus} />
+                <EtapaEscolhaUnidades
+                  crianca={criancaAtiva}
+                  bairroResponsavel={bairroResponsavel}
+                  onConcluida={() => irParaEscolhaOuStatus(criancaAtiva.id)}
+                />
+              </>
             )}
-            {etapa === 4 && status && <EtapaStatus status={status} />}
+            {etapa === 4 && status && (
+              <>
+                <SeletorCrianca criancas={criancas} ativaId={criancaAtivaId} onSelecionar={irParaEscolhaOuStatus} />
+                <EtapaStatus status={status} />
+              </>
+            )}
           </Box>
         </Card>
       </Container>
@@ -605,27 +617,45 @@ function EtapaEndereco({
 
 function EtapaCadastroCrianca({
   responsavelId,
-  onCriada,
+  onContinuar,
 }: {
   responsavelId: string;
-  onCriada: (crianca: Crianca) => void;
+  onContinuar: (criancas: Crianca[]) => void;
 }) {
+  const [carregando, setCarregando] = useState(true);
+  const [criancas, setCriancas] = useState<Crianca[]>([]);
   const [nomeCompleto, setNomeCompleto] = useState('');
+  const [cpfCrianca, setCpfCrianca] = useState('');
   const [dataNascimento, setDataNascimento] = useState('');
   const [sexo, setSexo] = useState<'M' | 'F' | ''>('');
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
-  const cadastrar = async () => {
+  useEffect(() => {
+    getResponsavel(responsavelId)
+      .then((r) => setCriancas(r.criancas))
+      .finally(() => setCarregando(false));
+  }, [responsavelId]);
+
+  const adicionar = async () => {
     setErro(null);
+    if (!nomeCompleto.trim() || !dataNascimento) {
+      setErro('Preencha nome e data de nascimento pra continuar.');
+      return;
+    }
     setLoading(true);
     try {
       const c = await cadastrarCrianca(responsavelId, {
         nomeCompleto,
         dataNascimento,
         sexo: sexo || undefined,
+        cpfCrianca: cpfCrianca || undefined,
       });
-      onCriada(c);
+      setCriancas((atual) => [...atual, c]);
+      setNomeCompleto('');
+      setCpfCrianca('');
+      setDataNascimento('');
+      setSexo('');
     } catch (e) {
       setErro((e as Error).message);
     } finally {
@@ -633,24 +663,89 @@ function EtapaCadastroCrianca({
     }
   };
 
+  if (carregando) return <Typography>Carregando…</Typography>;
+
   return (
     <Stack spacing={2.5}>
+      <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+        Cadastre um ou mais filhos(as) — cada um pode ser inscrito separadamente nas próximas etapas.
+      </Typography>
+
+      {criancas.length > 0 && (
+        <Stack spacing={1}>
+          {criancas.map((c) => (
+            <Card key={c.id} variant="outlined" sx={{ p: 2 }}>
+              <Typography variant="subtitle2">{c.nome_completo}</Typography>
+              <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                Nascimento: {c.data_nascimento}
+                {c.cpf_crianca ? ` · CPF: ${c.cpf_crianca}` : ''}
+              </Typography>
+            </Card>
+          ))}
+        </Stack>
+      )}
+
       {erro && <Alert severity="error">{erro}</Alert>}
-      <TextField label="Nome completo da criança" value={nomeCompleto} onChange={(e) => setNomeCompleto(e.target.value)} />
-      <TextField
-        label="Data de nascimento"
-        type="date"
-        value={dataNascimento}
-        onChange={(e) => setDataNascimento(e.target.value)}
-        InputLabelProps={{ shrink: true }}
-      />
-      <Stack direction="row" spacing={1}>
-        <Chip label="Menino" color={sexo === 'M' ? 'primary' : 'default'} onClick={() => setSexo('M')} />
-        <Chip label="Menina" color={sexo === 'F' ? 'primary' : 'default'} onClick={() => setSexo('F')} />
+
+      <Stack spacing={2}>
+        <Typography variant="subtitle2">{criancas.length > 0 ? 'Adicionar outro(a) filho(a)' : 'Dados da criança'}</Typography>
+        <TextField label="Nome completo da criança" value={nomeCompleto} onChange={(e) => setNomeCompleto(e.target.value)} />
+        <TextField
+          label="CPF da criança (opcional)"
+          value={cpfCrianca}
+          onChange={(e) => setCpfCrianca(e.target.value)}
+          placeholder="Somente números"
+        />
+        <TextField
+          label="Data de nascimento"
+          type="date"
+          value={dataNascimento}
+          onChange={(e) => setDataNascimento(e.target.value)}
+          InputLabelProps={{ shrink: true }}
+        />
+        <Stack direction="row" spacing={1}>
+          <Chip label="Menino" color={sexo === 'M' ? 'primary' : 'default'} onClick={() => setSexo('M')} />
+          <Chip label="Menina" color={sexo === 'F' ? 'primary' : 'default'} onClick={() => setSexo('F')} />
+        </Stack>
+        <LoadingButton variant="outlined" size="large" loading={loading} onClick={adicionar}>
+          Adicionar filho(a)
+        </LoadingButton>
       </Stack>
-      <LoadingButton variant="contained" size="large" loading={loading} onClick={cadastrar}>
+
+      <LoadingButton
+        variant="contained"
+        size="large"
+        disabled={criancas.length === 0}
+        onClick={() => onContinuar(criancas)}
+      >
         Continuar
       </LoadingButton>
+    </Stack>
+  );
+}
+
+// ----------------------------------------------------------------------
+
+function SeletorCrianca({
+  criancas,
+  ativaId,
+  onSelecionar,
+}: {
+  criancas: Crianca[];
+  ativaId: string | null;
+  onSelecionar: (id: string) => void;
+}) {
+  if (criancas.length <= 1) return null;
+  return (
+    <Stack direction="row" spacing={1} sx={{ mb: 2.5, flexWrap: 'wrap', gap: 1 }}>
+      {criancas.map((c) => (
+        <Chip
+          key={c.id}
+          label={c.nome_completo}
+          color={c.id === ativaId ? 'primary' : 'default'}
+          onClick={() => onSelecionar(c.id)}
+        />
+      ))}
     </Stack>
   );
 }
