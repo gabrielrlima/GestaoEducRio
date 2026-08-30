@@ -14,7 +14,7 @@ export const responsaveisRoutes = new Elysia({ prefix: '/responsaveis' })
         email: t.String(),
         telefone: t.Optional(t.String()),
         cep: t.Optional(t.String()),
-        bairro: t.String(),
+        bairro: t.Optional(t.String()),
         logradouro: t.Optional(t.String()),
         numero: t.Optional(t.String()),
         complemento: t.Optional(t.String()),

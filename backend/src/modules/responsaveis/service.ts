@@ -31,7 +31,7 @@ export interface CreateResponsavelInput {
   email: string;
   telefone?: string;
   cep?: string;
-  bairro: string;
+  bairro?: string;
   logradouro?: string;
   numero?: string;
   complemento?: string;
@@ -44,6 +44,11 @@ export interface CreateResponsavelInput {
  * portal (CPF + data de nascimento + código de verificação enviado por e-mail).
  * R1: validação real de CPF contra a Receita Federal fica como stub — aqui só
  * valida formato/dígito verificador.
+ *
+ * `bairro` é opcional na criação — o Portal cadastra o responsável só com
+ * identidade (CPF/nome/data/e-mail) na tela de login, e coleta o endereço
+ * depois, já autenticado, na etapa "Endereço" (via PATCH). Sem valor, cai no
+ * mesmo placeholder usado pra unidade sem bairro na fonte ("Não informado").
  *
  * Se `nis` for informado, consulta Bolsa Família no Portal da Transparência
  * (best-effort — sem chave configurada, ou se a chamada falhar/expirar, o
@@ -85,7 +90,7 @@ export async function upsertResponsavel(input: CreateResponsavelInput): Promise<
     $telefone: input.telefone ?? null,
     $email: input.email,
     $cep: input.cep ?? null,
-    $bairro: input.bairro,
+    $bairro: input.bairro?.trim() || 'Não informado',
     $logradouro: input.logradouro ?? null,
     $numero: input.numero ?? null,
     $complemento: input.complemento ?? null,

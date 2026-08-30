@@ -205,8 +205,8 @@ export async function cadastrarResponsavel(input: {
   nome: string;
   dataNascimento: string;
   email: string;
-  bairro: string;
   telefone?: string;
+  bairro?: string;
   cep?: string;
   logradouro?: string;
   numero?: string;
@@ -218,6 +218,24 @@ export async function cadastrarResponsavel(input: {
 
 export async function getResponsavel(idOuCpf: string) {
   const { data } = await client.get<Responsavel & { criancas: Crianca[] }>(`/responsaveis/${idOuCpf}`);
+  return data;
+}
+
+export async function atualizarResponsavel(
+  id: string,
+  patch: Partial<{
+    nome: string;
+    dataNascimento: string;
+    email: string;
+    telefone: string;
+    cep: string;
+    bairro: string;
+    logradouro: string;
+    numero: string;
+    complemento: string;
+  }>
+) {
+  const { data } = await client.patch<Responsavel>(`/responsaveis/${id}`, patch);
   return data;
 }
 

@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 import Box from '@mui/material/Box';
 import Tab from '@mui/material/Tab';
@@ -29,6 +29,7 @@ import {
   getStatusCrianca,
   unidadesProximas,
   cadastrarResponsavel,
+  atualizarResponsavel,
   solicitarCodigoResponsavel,
   verificarCodigoResponsavel,
 } from 'src/lib/creche-api';
@@ -40,22 +41,14 @@ import { Logo } from 'src/components/logo';
 
 const ANO_PROCESSO = new Date().getFullYear();
 
-type Etapa = 0 | 1 | 2 | 3 | 4;
+type Etapa = 0 | 1 | 2 | 3;
 
 const TABS: Array<{ value: Etapa; label: string }> = [
-  { value: 0, label: 'Login' },
-  { value: 1, label: 'Endereço' },
-  { value: 2, label: 'Cadastrar filho(a)' },
-  { value: 3, label: 'Escolher unidades' },
-  { value: 4, label: 'Status' },
+  { value: 0, label: 'Endereço' },
+  { value: 1, label: 'Cadastrar filho(a)' },
+  { value: 2, label: 'Escolher unidades' },
+  { value: 3, label: 'Status' },
 ];
-
-interface DadosIdentidade {
-  cpf: string;
-  dataNascimento: string;
-  nome: string;
-  email: string;
-}
 
 export default function PortalPage() {
   const theme = useTheme();
@@ -63,7 +56,6 @@ export default function PortalPage() {
 
   const [etapa, setEtapa] = useState<Etapa>(0);
   const [etapaMaxima, setEtapaMaxima] = useState<Etapa>(0);
-  const [dadosIdentidade, setDadosIdentidade] = useState<DadosIdentidade | null>(null);
   const [responsavelId, setResponsavelId] = useState<string | null>(null);
   const [bairroResponsavel, setBairroResponsavel] = useState('');
   const [crianca, setCrianca] = useState<Crianca | null>(null);
@@ -84,10 +76,40 @@ export default function PortalPage() {
     async (idCrianca: string) => {
       const s = await getStatusCrianca(idCrianca);
       setStatus(s);
-      irParaEtapa(s.inscricaoAtiva ? 4 : 3);
+      irParaEtapa(s.inscricaoAtiva ? 3 : 2);
     },
     [irParaEtapa]
   );
+
+  // Login é uma tela pura (igual ao login admin) — não é uma etapa da
+  // "área logada". Só depois de autenticado (responsavelId setado) é que o
+  // usuário entra no card com as etapas em tabs.
+  if (!responsavelId) {
+    return (
+      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', bgcolor: 'background.neutral' }}>
+        <title>Portal da Família — GestaoEducRio</title>
+        <Container maxWidth="xs">
+          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
+            <Logo isSingle={false} sx={{ width: 190, height: 56 }} />
+          </Box>
+          <Card sx={{ p: 5 }}>
+            <Typography variant="h4" sx={{ mb: 1 }}>
+              Inscrição Creche
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 3 }}>
+              Acesse com seu CPF pra cadastrar seu filho(a) e escolher unidades.
+            </Typography>
+            <EtapaLogin
+              onAutenticado={(id, bairro) => {
+                setResponsavelId(id);
+                setBairroResponsavel(bairro);
+              }}
+            />
+          </Card>
+        </Container>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.neutral', py: { xs: 3, md: 6 } }}>
@@ -147,29 +169,15 @@ export default function PortalPage() {
 
           <Box sx={{ p: { xs: 3, md: 4 }, flex: '1 1 auto' }}>
             {etapa === 0 && (
-              <EtapaLogin
-                onLogado={(id, bairro) => {
-                  setResponsavelId(id);
+              <EtapaEndereco
+                responsavelId={responsavelId}
+                onConcluido={(bairro) => {
                   setBairroResponsavel(bairro);
-                  irParaEtapa(2);
-                }}
-                onNovoCadastro={(dados) => {
-                  setDadosIdentidade(dados);
                   irParaEtapa(1);
                 }}
               />
             )}
-            {etapa === 1 && dadosIdentidade && (
-              <EtapaEndereco
-                dadosIdentidade={dadosIdentidade}
-                onConcluido={(id, bairro) => {
-                  setResponsavelId(id);
-                  setBairroResponsavel(bairro);
-                  irParaEtapa(2);
-                }}
-              />
-            )}
-            {etapa === 2 && responsavelId && (
+            {etapa === 1 && (
               <EtapaCadastroCrianca
                 responsavelId={responsavelId}
                 onCriada={(c) => {
@@ -178,14 +186,14 @@ export default function PortalPage() {
                 }}
               />
             )}
-            {etapa === 3 && crianca && (
+            {etapa === 2 && crianca && (
               <EtapaEscolhaUnidades
                 crianca={crianca}
                 bairroResponsavel={bairroResponsavel}
                 onConcluida={() => irParaEscolhaOuStatus(crianca.id)}
               />
             )}
-            {etapa === 4 && status && <EtapaStatus status={status} />}
+            {etapa === 3 && status && <EtapaStatus status={status} />}
           </Box>
         </Card>
       </Container>
@@ -195,13 +203,7 @@ export default function PortalPage() {
 
 // ----------------------------------------------------------------------
 
-function EtapaLogin({
-  onLogado,
-  onNovoCadastro,
-}: {
-  onLogado: (responsavelId: string, bairro: string) => void;
-  onNovoCadastro: (dados: DadosIdentidade) => void;
-}) {
+function EtapaLogin({ onAutenticado }: { onAutenticado: (responsavelId: string, bairro: string) => void }) {
   const [cpf, setCpf] = useState('');
   const [dataNascimento, setDataNascimento] = useState('');
   const [nome, setNome] = useState('');
@@ -214,23 +216,22 @@ function EtapaLogin({
   const [infoEnvio, setInfoEnvio] = useState<string | null>(null);
 
   // Fluxo automático: tenta o login com CPF + data de nascimento; se não
-  // encontrar cadastro, revela nome/e-mail pra seguir pra etapa de endereço
-  // (onde o cadastro é de fato criado), sem a família precisar dizer se "já
-  // tem conta" ou não.
+  // encontrar cadastro, revela nome/e-mail — ao confirmar, cria a conta e já
+  // dispara o código, sem a família precisar dizer se "já tem conta" ou não.
+  // Endereço não entra aqui: é preenchido depois, já autenticado, na área
+  // logada (primeira etapa em tabs).
   const continuar = async () => {
     setErro(null);
-
-    if (precisaCadastrar) {
-      if (!nome.trim() || !email.trim()) {
-        setErro('Preencha nome e e-mail pra continuar.');
-        return;
-      }
-      onNovoCadastro({ cpf, dataNascimento, nome, email });
+    if (precisaCadastrar && (!nome.trim() || !email.trim())) {
+      setErro('Preencha nome e e-mail pra continuar.');
       return;
     }
 
     setLoading(true);
     try {
+      if (precisaCadastrar) {
+        await cadastrarResponsavel({ cpf, nome, dataNascimento, email });
+      }
       const resultado = await solicitarCodigoResponsavel(cpf, dataNascimento);
       setInfoEnvio(
         resultado.modo === 'email'
@@ -240,7 +241,7 @@ function EtapaLogin({
       setCodigoSolicitado(true);
     } catch (e) {
       const mensagem = (e as Error).message;
-      if (/não conferem|não encontrado/i.test(mensagem)) {
+      if (!precisaCadastrar && /não conferem|não encontrado/i.test(mensagem)) {
         setPrecisaCadastrar(true);
       } else {
         setErro(mensagem);
@@ -256,7 +257,7 @@ function EtapaLogin({
     try {
       const { responsavelId } = await verificarCodigoResponsavel(cpf, codigo);
       const responsavel = await getResponsavel(responsavelId);
-      onLogado(responsavelId, responsavel.bairro);
+      onAutenticado(responsavelId, responsavel.bairro);
     } catch (e) {
       setErro((e as Error).message);
     } finally {
@@ -270,7 +271,7 @@ function EtapaLogin({
         {infoEnvio && <Alert severity="info">{infoEnvio}</Alert>}
         {erro && <Alert severity="error">{erro}</Alert>}
         <TextField label="Código de verificação" value={codigo} onChange={(e) => setCodigo(e.target.value)} />
-        <LoadingButton variant="contained" size="large" loading={loading} onClick={verificar}>
+        <LoadingButton fullWidth variant="contained" size="large" loading={loading} onClick={verificar}>
           Confirmar código
         </LoadingButton>
       </Stack>
@@ -300,7 +301,7 @@ function EtapaLogin({
         </>
       )}
 
-      <LoadingButton variant="contained" size="large" loading={loading} onClick={continuar}>
+      <LoadingButton fullWidth variant="contained" size="large" loading={loading} onClick={continuar}>
         Continuar
       </LoadingButton>
     </Stack>
@@ -310,12 +311,13 @@ function EtapaLogin({
 // ----------------------------------------------------------------------
 
 function EtapaEndereco({
-  dadosIdentidade,
+  responsavelId,
   onConcluido,
 }: {
-  dadosIdentidade: DadosIdentidade;
-  onConcluido: (responsavelId: string, bairro: string) => void;
+  responsavelId: string;
+  onConcluido: (bairro: string) => void;
 }) {
+  const [carregando, setCarregando] = useState(true);
   const [cep, setCep] = useState('');
   const [logradouro, setLogradouro] = useState('');
   const [numero, setNumero] = useState('');
@@ -323,12 +325,20 @@ function EtapaEndereco({
   const [bairro, setBairro] = useState('');
   const [buscandoCep, setBuscandoCep] = useState(false);
   const [cepNaoEncontrado, setCepNaoEncontrado] = useState(false);
-  const [codigoSolicitado, setCodigoSolicitado] = useState(false);
-  const [codigo, setCodigo] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
-  const [infoEnvio, setInfoEnvio] = useState<string | null>(null);
-  const responsavelIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    getResponsavel(responsavelId)
+      .then((r) => {
+        setCep(r.cep ?? '');
+        setLogradouro(r.logradouro ?? '');
+        setNumero(r.numero ?? '');
+        setComplemento(r.complemento ?? '');
+        setBairro(r.bairro === 'Não informado' ? '' : r.bairro);
+      })
+      .finally(() => setCarregando(false));
+  }, [responsavelId]);
 
   const handleCepChange = async (valor: string) => {
     setCep(valor);
@@ -349,63 +359,30 @@ function EtapaEndereco({
     }
   };
 
-  const confirmarEndereco = async () => {
+  const confirmar = async () => {
     setErro(null);
     if (!bairro.trim()) {
       setErro('Informe ao menos o bairro pra continuar.');
       return;
     }
-    setLoading(true);
+    setSalvando(true);
     try {
-      const responsavel = await cadastrarResponsavel({
-        ...dadosIdentidade,
+      await atualizarResponsavel(responsavelId, {
         bairro,
         cep: limparCep(cep) || undefined,
         logradouro: logradouro || undefined,
         numero: numero || undefined,
         complemento: complemento || undefined,
       });
-      const resultado = await solicitarCodigoResponsavel(dadosIdentidade.cpf, dadosIdentidade.dataNascimento);
-      setInfoEnvio(
-        resultado.modo === 'email'
-          ? 'Código enviado para o seu e-mail cadastrado.'
-          : 'Modo de teste (sem SMTP configurado) — código: ver console do backend.'
-      );
-      setCodigoSolicitado(true);
-      // guarda o id já cadastrado pra usar depois da verificação do código
-      responsavelIdRef.current = responsavel.id;
+      onConcluido(bairro);
     } catch (e) {
       setErro((e as Error).message);
     } finally {
-      setLoading(false);
+      setSalvando(false);
     }
   };
 
-  const verificar = async () => {
-    setErro(null);
-    setLoading(true);
-    try {
-      await verificarCodigoResponsavel(dadosIdentidade.cpf, codigo);
-      onConcluido(responsavelIdRef.current!, bairro);
-    } catch (e) {
-      setErro((e as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (codigoSolicitado) {
-    return (
-      <Stack spacing={2.5}>
-        {infoEnvio && <Alert severity="info">{infoEnvio}</Alert>}
-        {erro && <Alert severity="error">{erro}</Alert>}
-        <TextField label="Código de verificação" value={codigo} onChange={(e) => setCodigo(e.target.value)} />
-        <LoadingButton variant="contained" size="large" loading={loading} onClick={verificar}>
-          Confirmar código
-        </LoadingButton>
-      </Stack>
-    );
-  }
+  if (carregando) return <Typography>Carregando seus dados…</Typography>;
 
   return (
     <Stack spacing={2.5}>
@@ -437,8 +414,8 @@ function EtapaEndereco({
       </Stack>
       <TextField label="Bairro" value={bairro} onChange={(e) => setBairro(e.target.value)} />
 
-      <LoadingButton variant="contained" size="large" loading={loading} onClick={confirmarEndereco}>
-        Cadastrar e receber código
+      <LoadingButton variant="contained" size="large" loading={salvando} onClick={confirmar}>
+        Continuar
       </LoadingButton>
     </Stack>
   );
