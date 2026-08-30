@@ -142,8 +142,28 @@ export interface Inscricao {
   responsavel_id: string;
   ano_processo: number;
   grupamento_pretendido: Grupamento;
+  pontuacao_total: number | null;
   opcoes: InscricaoOpcao[];
   avisoTerritorial?: boolean;
+}
+
+export interface Pergunta {
+  id: string;
+  ano_processo: number;
+  texto: string;
+  pontuacao: number;
+  criterio_desempate: 0 | 1;
+  ordem: number | null;
+}
+
+export interface RespostaComPergunta {
+  id: string;
+  pergunta_id: string;
+  resposta: 'Sim' | 'Nao';
+  confirmado: 0 | 1;
+  arquivo_nome: string | null;
+  pergunta_texto: string;
+  pergunta_pontuacao: number;
 }
 
 export interface StatusConsolidado {
@@ -293,6 +313,30 @@ export async function criarInscricao(input: {
   opcoes: Array<{ unidadeId: string; turno: Turno }>;
 }) {
   const { data } = await client.post<Inscricao>('/inscricoes', input);
+  return data;
+}
+
+export async function listarPerguntas(anoProcesso: number) {
+  const { data } = await client.get<Pergunta[]>('/inscricoes/perguntas', { params: { anoProcesso } });
+  return data;
+}
+
+export async function listarRespostas(inscricaoId: string) {
+  const { data } = await client.get<RespostaComPergunta[]>(`/inscricoes/${inscricaoId}/respostas`);
+  return data;
+}
+
+export async function salvarRespostas(
+  inscricaoId: string,
+  respostas: Array<{
+    perguntaId: string;
+    resposta: 'Sim' | 'Nao';
+    arquivoNome?: string;
+    arquivoTipo?: string;
+    arquivoBase64?: string;
+  }>
+) {
+  const { data } = await client.post<Inscricao>(`/inscricoes/${inscricaoId}/respostas`, { respostas });
   return data;
 }
 

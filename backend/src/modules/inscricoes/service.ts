@@ -159,6 +159,118 @@ export function getStatusConsolidadoCrianca(criancaId: string) {
  * usado tanto no Portal (mostrar quão concorrida está uma unidade antes de
  * escolher) quanto no Admin (fila dentro de cada unidade).
  */
+export interface Pergunta {
+  id: string;
+  ano_processo: number;
+  texto: string;
+  pontuacao: number;
+  criterio_desempate: 0 | 1;
+  ordem: number | null;
+}
+
+export function listarPerguntas(anoProcesso: number): Pergunta[] {
+  return db
+    .query('SELECT * FROM pergunta WHERE ano_processo = $ano ORDER BY ordem, pontuacao DESC')
+    .all({ $ano: anoProcesso }) as Pergunta[];
+}
+
+export interface RespostaInput {
+  perguntaId: string;
+  resposta: 'Sim' | 'Nao';
+  arquivoNome?: string;
+  arquivoTipo?: string;
+  arquivoBase64?: string;
+}
+
+/**
+ * Salva as respostas do questionário socioeconômico (upsert por pergunta) e
+ * recalcula `inscricao.pontuacao_total` como a soma da pontuação de toda
+ * pergunta NÃO-desempate respondida "Sim" — é o que alimenta o ORDER BY de
+ * `filaDoProcesso` (classificacao/service.ts), hoje sempre NULL porque nada
+ * escrevia esse campo.
+ */
+export function salvarRespostas(inscricaoId: string, respostas: RespostaInput[]): InscricaoComOpcoes {
+  getInscricaoById(inscricaoId); // 404 se não existir
+
+  const transacao = db.transaction(() => {
+    for (const r of respostas) {
+      const existente = db
+        .query('SELECT id FROM resposta_socioeconomica WHERE inscricao_id = $inscricaoId AND pergunta_id = $perguntaId')
+        .get({ $inscricaoId: inscricaoId, $perguntaId: r.perguntaId }) as { id: string } | null;
+
+      if (existente) {
+        db.query(
+          `UPDATE resposta_socioeconomica
+             SET resposta = $resposta, arquivo_nome = $arquivoNome, arquivo_tipo = $arquivoTipo, arquivo_base64 = $arquivoBase64,
+                 confirmado = $confirmado
+           WHERE id = $id`
+        ).run({
+          $id: existente.id,
+          $resposta: r.resposta,
+          $arquivoNome: r.arquivoNome ?? null,
+          $arquivoTipo: r.arquivoTipo ?? null,
+          $arquivoBase64: r.arquivoBase64 ?? null,
+          $confirmado: r.arquivoBase64 ? 1 : 0,
+        });
+      } else {
+        db.query(
+          `INSERT INTO resposta_socioeconomica
+             (id, inscricao_id, pergunta_id, resposta, confirmado, arquivo_nome, arquivo_tipo, arquivo_base64)
+           VALUES ($id, $inscricaoId, $perguntaId, $resposta, $confirmado, $arquivoNome, $arquivoTipo, $arquivoBase64)`
+        ).run({
+          $id: randomUUID(),
+          $inscricaoId: inscricaoId,
+          $perguntaId: r.perguntaId,
+          $resposta: r.resposta,
+          $confirmado: r.arquivoBase64 ? 1 : 0,
+          $arquivoNome: r.arquivoNome ?? null,
+          $arquivoTipo: r.arquivoTipo ?? null,
+          $arquivoBase64: r.arquivoBase64 ?? null,
+        });
+      }
+    }
+
+    const total = db
+      .query(
+        `SELECT COALESCE(SUM(p.pontuacao), 0) AS total
+         FROM resposta_socioeconomica rs
+         JOIN pergunta p ON p.id = rs.pergunta_id
+         WHERE rs.inscricao_id = $inscricaoId AND rs.resposta = 'Sim' AND p.criterio_desempate = 0`
+      )
+      .get({ $inscricaoId: inscricaoId }) as { total: number };
+
+    db.query('UPDATE inscricao SET pontuacao_total = $total WHERE id = $id').run({
+      $total: total.total,
+      $id: inscricaoId,
+    });
+  });
+  transacao();
+
+  return getInscricaoById(inscricaoId);
+}
+
+export interface RespostaComPergunta {
+  id: string;
+  pergunta_id: string;
+  resposta: 'Sim' | 'Nao';
+  confirmado: 0 | 1;
+  arquivo_nome: string | null;
+  pergunta_texto: string;
+  pergunta_pontuacao: number;
+}
+
+export function listarRespostas(inscricaoId: string): RespostaComPergunta[] {
+  return db
+    .query(
+      `SELECT rs.id, rs.pergunta_id, rs.resposta, rs.confirmado, rs.arquivo_nome,
+              p.texto AS pergunta_texto, p.pontuacao AS pergunta_pontuacao
+       FROM resposta_socioeconomica rs
+       JOIN pergunta p ON p.id = rs.pergunta_id
+       WHERE rs.inscricao_id = $inscricaoId`
+    )
+    .all({ $inscricaoId: inscricaoId }) as RespostaComPergunta[];
+}
+
 export function contagemSolicitacoesPorUnidade(anoProcesso: number) {
   return db
     .query(

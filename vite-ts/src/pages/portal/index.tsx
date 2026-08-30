@@ -24,8 +24,12 @@ import {
   getToken,
   type Turno,
   type Crianca,
+  type Pergunta,
   getResponsavel,
   criarInscricao,
+  listarPerguntas,
+  salvarRespostas,
+  listarRespostas,
   atualizarCrianca,
   cadastrarCrianca,
   getStatusCrianca,
@@ -44,14 +48,15 @@ import { Logo } from 'src/components/logo';
 
 const ANO_PROCESSO = new Date().getFullYear();
 
-type Etapa = 0 | 1 | 2 | 3 | 4;
+type Etapa = 0 | 1 | 2 | 3 | 4 | 5;
 
 const TABS: Array<{ value: Etapa; label: string }> = [
   { value: 0, label: 'Dados pessoais' },
   { value: 1, label: 'Endereço' },
   { value: 2, label: 'Cadastrar filho(a)' },
   { value: 3, label: 'Escolher unidades' },
-  { value: 4, label: 'Status' },
+  { value: 4, label: 'Documentos' },
+  { value: 5, label: 'Status' },
 ];
 
 export default function PortalPage() {
@@ -64,6 +69,7 @@ export default function PortalPage() {
   const [bairroResponsavel, setBairroResponsavel] = useState('');
   const [criancas, setCriancas] = useState<Crianca[]>([]);
   const [criancaAtivaId, setCriancaAtivaId] = useState<string | null>(null);
+  const [inscricaoAtivaId, setInscricaoAtivaId] = useState<string | null>(null);
   const [status, setStatus] = useState<StatusConsolidado | null>(null);
 
   const criancaAtiva = criancas.find((c) => c.id === criancaAtivaId) ?? null;
@@ -84,7 +90,8 @@ export default function PortalPage() {
       setCriancaAtivaId(idCrianca);
       const s = await getStatusCrianca(idCrianca);
       setStatus(s);
-      irParaEtapa(s.inscricaoAtiva ? 4 : 3);
+      setInscricaoAtivaId(s.inscricaoAtiva?.id ?? null);
+      irParaEtapa(s.inscricaoAtiva ? 5 : 3);
     },
     [irParaEtapa]
   );
@@ -204,11 +211,24 @@ export default function PortalPage() {
                 <EtapaEscolhaUnidades
                   crianca={criancaAtiva}
                   bairroResponsavel={bairroResponsavel}
-                  onConcluida={() => irParaEscolhaOuStatus(criancaAtiva.id)}
+                  onConcluida={(inscricaoId) => {
+                    setInscricaoAtivaId(inscricaoId);
+                    irParaEtapa(4);
+                  }}
                 />
               </>
             )}
-            {etapa === 4 && status && (
+            {etapa === 4 && criancaAtiva && inscricaoAtivaId && (
+              <>
+                <SeletorCrianca criancas={criancas} ativaId={criancaAtivaId} onSelecionar={irParaEscolhaOuStatus} />
+                <EtapaElegibilidade
+                  inscricaoId={inscricaoAtivaId}
+                  anoProcesso={ANO_PROCESSO}
+                  onConcluido={() => irParaEscolhaOuStatus(criancaAtiva.id)}
+                />
+              </>
+            )}
+            {etapa === 5 && status && (
               <>
                 <SeletorCrianca criancas={criancas} ativaId={criancaAtivaId} onSelecionar={irParaEscolhaOuStatus} />
                 <EtapaStatus status={status} />
@@ -884,7 +904,7 @@ function EtapaEscolhaUnidades({
 }: {
   crianca: Crianca;
   bairroResponsavel: string;
-  onConcluida: () => void;
+  onConcluida: (inscricaoId: string) => void;
 }) {
   const [candidatas, setCandidatas] = useState<UnidadeProxima[]>([]);
   const [selecionadas, setSelecionadas] = useState<string[]>([]);
@@ -921,7 +941,7 @@ function EtapaEscolhaUnidades({
           'Nenhuma das unidades escolhidas fica perto do seu endereço — isso aumenta bastante a chance de a vaga não ser aproveitada. Você pode confirmar mesmo assim ou voltar e escolher outras.'
         );
       } else {
-        onConcluida();
+        onConcluida(resultado.id);
       }
     } catch (e) {
       setErro((e as Error).message);
@@ -990,6 +1010,169 @@ function EtapaEscolhaUnidades({
         onClick={confirmarInscricao}
       >
         Confirmar inscrição ({selecionadas.length}/5)
+      </LoadingButton>
+    </Stack>
+  );
+}
+
+// ----------------------------------------------------------------------
+
+function lerArquivoBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '');
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+interface RespostaLocal {
+  marcado: boolean;
+  arquivo: File | null;
+}
+
+function EtapaElegibilidade({
+  inscricaoId,
+  anoProcesso,
+  onConcluido,
+}: {
+  inscricaoId: string;
+  anoProcesso: number;
+  onConcluido: () => void;
+}) {
+  const [carregando, setCarregando] = useState(true);
+  const [perguntas, setPerguntas] = useState<Pergunta[]>([]);
+  const [respostas, setRespostas] = useState<Record<string, RespostaLocal>>({});
+  const [jaEnviado, setJaEnviado] = useState<Record<string, string>>({}); // perguntaId -> arquivo_nome
+  const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  useEffect(() => {
+    Promise.all([listarPerguntas(anoProcesso), listarRespostas(inscricaoId)]).then(([todasPerguntas, existentes]) => {
+      setPerguntas(todasPerguntas);
+      const marcados: Record<string, RespostaLocal> = {};
+      const enviados: Record<string, string> = {};
+      for (const r of existentes) {
+        marcados[r.pergunta_id] = { marcado: r.resposta === 'Sim', arquivo: null };
+        if (r.arquivo_nome) enviados[r.pergunta_id] = r.arquivo_nome;
+      }
+      setRespostas(marcados);
+      setJaEnviado(enviados);
+      setCarregando(false);
+    });
+  }, [inscricaoId, anoProcesso]);
+
+  const alternar = (perguntaId: string) => {
+    setRespostas((atual) => ({
+      ...atual,
+      [perguntaId]: { marcado: !atual[perguntaId]?.marcado, arquivo: atual[perguntaId]?.arquivo ?? null },
+    }));
+  };
+
+  const anexar = (perguntaId: string, arquivo: File | null) => {
+    setRespostas((atual) => ({ ...atual, [perguntaId]: { marcado: atual[perguntaId]?.marcado ?? false, arquivo } }));
+  };
+
+  const pontuacaoEstimativa = perguntas.reduce(
+    (soma, p) => (respostas[p.id]?.marcado && !p.criterio_desempate ? soma + p.pontuacao : soma),
+    0
+  );
+
+  const enviar = async () => {
+    setErro(null);
+    setEnviando(true);
+    try {
+      const payload = await Promise.all(
+        perguntas.map(async (p) => {
+          const r = respostas[p.id];
+          const arquivoBase64 = r?.arquivo ? await lerArquivoBase64(r.arquivo) : undefined;
+          return {
+            perguntaId: p.id,
+            resposta: (r?.marcado ? 'Sim' : 'Nao') as 'Sim' | 'Nao',
+            arquivoNome: r?.arquivo?.name,
+            arquivoTipo: r?.arquivo?.type,
+            arquivoBase64,
+          };
+        })
+      );
+      await salvarRespostas(inscricaoId, payload);
+      onConcluido();
+    } catch (e) {
+      setErro((e as Error).message);
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  if (carregando) return <Typography>Carregando critérios de elegibilidade…</Typography>;
+
+  return (
+    <Stack spacing={2.5}>
+      <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+        Marque os critérios que se aplicam à sua família e, se tiver, anexe um comprovante — isso define sua
+        pontuação na fila de classificação (regras oficiais da SME). Nenhum critério é obrigatório.
+      </Typography>
+
+      {erro && <Alert severity="error">{erro}</Alert>}
+
+      <Alert severity="info">
+        Pontuação estimada com os critérios marcados: <strong>{pontuacaoEstimativa} pontos</strong>
+      </Alert>
+
+      <Stack spacing={1.5}>
+        {perguntas.map((p) => {
+          const r = respostas[p.id];
+          const enviadoAnteriormente = jaEnviado[p.id];
+          return (
+            <Card
+              key={p.id}
+              variant="outlined"
+              sx={{
+                p: 2,
+                borderColor: r?.marcado ? 'primary.main' : undefined,
+                bgcolor: r?.marcado ? 'primary.lighter' : undefined,
+              }}
+            >
+              <Stack direction="row" alignItems="flex-start" spacing={1.5}>
+                <Chip
+                  label={r?.marcado ? 'Sim' : 'Não'}
+                  color={r?.marcado ? 'primary' : 'default'}
+                  onClick={() => alternar(p.id)}
+                  sx={{ cursor: 'pointer', flexShrink: 0 }}
+                />
+                <Stack spacing={1} sx={{ flex: 1 }}>
+                  <Typography variant="body2">{p.texto}</Typography>
+                  {!p.criterio_desempate && (
+                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                      {p.pontuacao} pontos
+                    </Typography>
+                  )}
+                  {r?.marcado && (
+                    <Stack spacing={0.5}>
+                      <Button component="label" size="small" variant="outlined" sx={{ alignSelf: 'flex-start' }}>
+                        {r.arquivo ? r.arquivo.name : enviadoAnteriormente ? 'Trocar comprovante' : 'Anexar comprovante'}
+                        <input
+                          type="file"
+                          hidden
+                          onChange={(e) => anexar(p.id, e.target.files?.[0] ?? null)}
+                        />
+                      </Button>
+                      {enviadoAnteriormente && !r.arquivo && (
+                        <Typography variant="caption" sx={{ color: 'success.main' }}>
+                          Comprovante já enviado: {enviadoAnteriormente}
+                        </Typography>
+                      )}
+                    </Stack>
+                  )}
+                </Stack>
+              </Stack>
+            </Card>
+          );
+        })}
+      </Stack>
+
+      <LoadingButton variant="contained" size="large" loading={enviando} onClick={enviar}>
+        Enviar e continuar
       </LoadingButton>
     </Stack>
   );
