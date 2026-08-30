@@ -1,54 +1,70 @@
 import { useState, useEffect, useCallback } from 'react';
 
 import Box from '@mui/material/Box';
+import Tab from '@mui/material/Tab';
 import Card from '@mui/material/Card';
 import Chip from '@mui/material/Chip';
 import Grid from '@mui/material/Grid';
-import Step from '@mui/material/Step';
+import Tabs from '@mui/material/Tabs';
 import Alert from '@mui/material/Alert';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
-import Stepper from '@mui/material/Stepper';
 import Collapse from '@mui/material/Collapse';
+import { useTheme } from '@mui/material/styles';
 import Container from '@mui/material/Container';
-import StepLabel from '@mui/material/StepLabel';
 import TextField from '@mui/material/TextField';
 import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
 import LoadingButton from '@mui/lab/LoadingButton';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import CircularProgress from '@mui/material/CircularProgress';
 
+import { limparCep, buscarEnderecoPorCep } from 'src/lib/viacep';
 import {
   getToken,
   type Turno,
   type Crianca,
   getResponsavel,
   criarInscricao,
-  type Responsavel,
   cadastrarCrianca,
   getStatusCrianca,
   unidadesProximas,
   type RecomendacaoIA,
   type UnidadeProxima,
   cadastrarResponsavel,
+  atualizarResponsavel,
   recomendarUnidadesIA,
   type StatusConsolidado,
   solicitarCodigoResponsavel,
   verificarCodigoResponsavel,
 } from 'src/lib/creche-api';
 
+import { Logo } from 'src/components/logo';
 import { Iconify } from 'src/components/iconify';
 import { EnderecoMap, type EnderecoMapMarcador } from 'src/components/endereco-map/endereco-map';
 
 // ----------------------------------------------------------------------
 
 const ANO_PROCESSO = new Date().getFullYear();
-const STEPS = ['Login', 'Cadastrar filho(a)', 'Escolher unidades', 'Status'];
 
-type Etapa = 0 | 1 | 2 | 3;
+type Etapa = 0 | 1 | 2 | 3 | 4;
+
+const TABS: Array<{ value: Etapa; label: string }> = [
+  { value: 0, label: 'Dados pessoais' },
+  { value: 1, label: 'Endereço' },
+  { value: 2, label: 'Cadastrar filho(a)' },
+  { value: 3, label: 'Escolher unidades' },
+  { value: 4, label: 'Status' },
+];
 
 export default function PortalPage() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
   const [etapa, setEtapa] = useState<Etapa>(0);
-  const [responsavel, setResponsavel] = useState<Responsavel | null>(null);
+  const [etapaMaxima, setEtapaMaxima] = useState<Etapa>(0);
+  const [responsavelId, setResponsavelId] = useState<string | null>(null);
+  const [bairroResponsavel, setBairroResponsavel] = useState('');
   const [crianca, setCrianca] = useState<Crianca | null>(null);
   const [status, setStatus] = useState<StatusConsolidado | null>(null);
 
@@ -58,57 +74,131 @@ export default function PortalPage() {
     }
   }, []);
 
-  const irParaEscolhaOuStatus = useCallback(async (idCrianca: string) => {
-    const s = await getStatusCrianca(idCrianca);
-    setStatus(s);
-    setEtapa(s.inscricaoAtiva ? 3 : 2);
+  const irParaEtapa = useCallback((novaEtapa: Etapa) => {
+    setEtapa(novaEtapa);
+    setEtapaMaxima((atual) => (novaEtapa > atual ? novaEtapa : atual));
   }, []);
+
+  const irParaEscolhaOuStatus = useCallback(
+    async (idCrianca: string) => {
+      const s = await getStatusCrianca(idCrianca);
+      setStatus(s);
+      irParaEtapa(s.inscricaoAtiva ? 4 : 3);
+    },
+    [irParaEtapa]
+  );
+
+  // Login é uma tela pura (igual ao login admin) — não é uma etapa da
+  // "área logada". Só depois de autenticado (responsavelId setado) é que o
+  // usuário entra no card com as etapas em tabs.
+  if (!responsavelId) {
+    return (
+      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', bgcolor: 'background.neutral' }}>
+        <title>Portal da Família — GestaoEducRio</title>
+        <Container maxWidth="xs">
+          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
+            <Logo isSingle={false} sx={{ width: 190, height: 56 }} />
+          </Box>
+          <Card sx={{ p: 5 }}>
+            <Typography variant="h4" sx={{ mb: 1 }}>
+              Inscrição Creche
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 3 }}>
+              Acesse com seu CPF pra cadastrar seu filho(a) e escolher unidades.
+            </Typography>
+            <EtapaLogin
+              onAutenticado={(id, bairro) => {
+                setResponsavelId(id);
+                setBairroResponsavel(bairro);
+              }}
+            />
+          </Card>
+        </Container>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.neutral', py: { xs: 3, md: 6 } }}>
       <title>Portal da Família — GestaoEducRio</title>
-      <Container maxWidth="sm">
-        <Typography variant="h4" sx={{ mb: 1 }}>
+      <Container maxWidth="md">
+        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
+          <Logo isSingle={false} sx={{ width: 190, height: 56 }} />
+        </Box>
+
+        <Typography variant="h4" sx={{ mb: 1, textAlign: 'center' }}>
           Inscrição Creche
         </Typography>
-        <Typography variant="body2" sx={{ color: 'text.secondary', mb: 4 }}>
+        <Typography variant="body2" sx={{ color: 'text.secondary', mb: 4, textAlign: 'center' }}>
           Cadastre seu filho(a) e escolha as unidades mais próximas de você.
         </Typography>
 
-        <Stepper activeStep={etapa} sx={{ mb: 4 }}>
-          {STEPS.map((label) => (
-            <Step key={label}>
-              <StepLabel>{label}</StepLabel>
-            </Step>
-          ))}
-        </Stepper>
+        <Card sx={{ display: 'flex', minHeight: 480, flexDirection: { xs: 'column', md: 'row' } }}>
+          <Tabs
+            orientation={isMobile ? 'horizontal' : 'vertical'}
+            variant={isMobile ? 'scrollable' : 'standard'}
+            scrollButtons={isMobile ? 'auto' : undefined}
+            allowScrollButtonsMobile={isMobile}
+            value={etapa}
+            onChange={(_event, newValue: Etapa) => {
+              if (newValue <= etapaMaxima) setEtapa(newValue);
+            }}
+            sx={{
+              p: isMobile ? 1 : 2,
+              width: { md: 220 },
+              bgcolor: 'background.neutral',
+              borderRight: { md: `1px solid ${theme.vars.palette.divider}` },
+              borderBottom: { xs: `1px solid ${theme.vars.palette.divider}`, md: 'none' },
+              '& .MuiTab-root': {
+                alignItems: isMobile ? 'center' : 'flex-start',
+                textAlign: isMobile ? 'center' : 'left',
+                minHeight: 48,
+                mx: isMobile ? 0.5 : 1.5,
+                my: isMobile ? 0 : 0.5,
+                borderRadius: 1,
+              },
+              '& .Mui-selected': {
+                bgcolor: 'background.paper',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
+              },
+              '& .MuiTabs-indicator': { display: 'none' },
+            }}
+          >
+            {TABS.map((tab) => (
+              <Tab key={tab.value} value={tab.value} label={tab.label} disabled={tab.value > etapaMaxima} />
+            ))}
+          </Tabs>
 
-        <Card sx={{ p: { xs: 3, md: 4 } }}>
-          {etapa === 0 && (
-            <EtapaLogin
-              onLogado={(r) => {
-                setResponsavel(r);
-                setEtapa(1);
-              }}
-            />
-          )}
-          {etapa === 1 && responsavel && (
-            <EtapaCadastroCrianca
-              responsavelId={responsavel.id}
-              onCriada={(c) => {
-                setCrianca(c);
-                irParaEscolhaOuStatus(c.id);
-              }}
-            />
-          )}
-          {etapa === 2 && crianca && responsavel && (
-            <EtapaEscolhaUnidades
-              crianca={crianca}
-              responsavel={responsavel}
-              onConcluida={() => irParaEscolhaOuStatus(crianca.id)}
-            />
-          )}
-          {etapa === 3 && status && <EtapaStatus status={status} />}
+          <Box sx={{ p: { xs: 3, md: 4 }, flex: '1 1 auto' }}>
+            {etapa === 0 && <EtapaDadosPessoais responsavelId={responsavelId} onConcluido={() => irParaEtapa(1)} />}
+            {etapa === 1 && (
+              <EtapaEndereco
+                responsavelId={responsavelId}
+                onConcluido={(bairro) => {
+                  setBairroResponsavel(bairro);
+                  irParaEtapa(2);
+                }}
+              />
+            )}
+            {etapa === 2 && (
+              <EtapaCadastroCrianca
+                responsavelId={responsavelId}
+                onCriada={(c) => {
+                  setCrianca(c);
+                  irParaEscolhaOuStatus(c.id);
+                }}
+              />
+            )}
+            {etapa === 3 && crianca && (
+              <EtapaEscolhaUnidades
+                crianca={crianca}
+                responsavelId={responsavelId}
+                bairroResponsavel={bairroResponsavel}
+                onConcluida={() => irParaEscolhaOuStatus(crianca.id)}
+              />
+            )}
+            {etapa === 4 && status && <EtapaStatus status={status} />}
+          </Box>
         </Card>
       </Container>
     </Box>
@@ -117,15 +207,10 @@ export default function PortalPage() {
 
 // ----------------------------------------------------------------------
 
-function EtapaLogin({ onLogado }: { onLogado: (responsavel: Responsavel) => void }) {
+function EtapaLogin({ onAutenticado }: { onAutenticado: (responsavelId: string, bairro: string) => void }) {
   const [cpf, setCpf] = useState('');
   const [dataNascimento, setDataNascimento] = useState('');
-  const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
-  const [bairro, setBairro] = useState('');
-  const [logradouro, setLogradouro] = useState('');
-  const [numero, setNumero] = useState('');
-  const [cep, setCep] = useState('');
   const [precisaCadastrar, setPrecisaCadastrar] = useState(false);
   const [codigoSolicitado, setCodigoSolicitado] = useState(false);
   const [codigo, setCodigo] = useState('');
@@ -134,23 +219,21 @@ function EtapaLogin({ onLogado }: { onLogado: (responsavel: Responsavel) => void
   const [infoEnvio, setInfoEnvio] = useState<string | null>(null);
 
   // Fluxo automático: tenta o login com CPF + data de nascimento; se não
-  // encontrar cadastro, revela os campos extras pra completar o cadastro na
-  // mesma tela, sem a família precisar dizer se "já tem conta" ou não.
+  // encontrar cadastro, revela e-mail (é o canal do código de verificação,
+  // por isso mora aqui e não em "Dados pessoais") — ao confirmar, cria a
+  // conta e já dispara o código. Nome, telefone e endereço são preenchidos
+  // depois, já autenticado, nas primeiras etapas em tabs da área logada.
   const continuar = async () => {
     setErro(null);
+    if (precisaCadastrar && !email.trim()) {
+      setErro('Informe seu e-mail pra receber o código de acesso.');
+      return;
+    }
+
     setLoading(true);
     try {
       if (precisaCadastrar) {
-        await cadastrarResponsavel({
-          cpf,
-          nome,
-          dataNascimento,
-          email,
-          bairro,
-          logradouro: logradouro || undefined,
-          numero: numero || undefined,
-          cep: cep || undefined,
-        });
+        await cadastrarResponsavel({ cpf, dataNascimento, email });
       }
       const resultado = await solicitarCodigoResponsavel(cpf, dataNascimento);
       setInfoEnvio(
@@ -163,7 +246,6 @@ function EtapaLogin({ onLogado }: { onLogado: (responsavel: Responsavel) => void
       const mensagem = (e as Error).message;
       if (!precisaCadastrar && /não conferem|não encontrado/i.test(mensagem)) {
         setPrecisaCadastrar(true);
-        setErro(null);
       } else {
         setErro(mensagem);
       }
@@ -178,7 +260,7 @@ function EtapaLogin({ onLogado }: { onLogado: (responsavel: Responsavel) => void
     try {
       const { responsavelId } = await verificarCodigoResponsavel(cpf, codigo);
       const responsavel = await getResponsavel(responsavelId);
-      onLogado(responsavel);
+      onAutenticado(responsavelId, responsavel.bairro);
     } catch (e) {
       setErro((e as Error).message);
     } finally {
@@ -192,7 +274,7 @@ function EtapaLogin({ onLogado }: { onLogado: (responsavel: Responsavel) => void
         {infoEnvio && <Alert severity="info">{infoEnvio}</Alert>}
         {erro && <Alert severity="error">{erro}</Alert>}
         <TextField label="Código de verificação" value={codigo} onChange={(e) => setCodigo(e.target.value)} />
-        <LoadingButton variant="contained" size="large" loading={loading} onClick={verificar}>
+        <LoadingButton fullWidth variant="contained" size="large" loading={loading} onClick={verificar}>
           Confirmar código
         </LoadingButton>
       </Stack>
@@ -203,7 +285,7 @@ function EtapaLogin({ onLogado }: { onLogado: (responsavel: Responsavel) => void
     <Stack spacing={2.5}>
       {erro && <Alert severity="error">{erro}</Alert>}
       {precisaCadastrar && (
-        <Alert severity="info">Não encontramos seu cadastro — complete os dados abaixo pra continuar.</Alert>
+        <Alert severity="info">Não encontramos seu cadastro — informe seu e-mail pra receber o código de acesso.</Alert>
       )}
 
       <TextField label="CPF" value={cpf} onChange={(e) => setCpf(e.target.value)} placeholder="Somente números" />
@@ -215,31 +297,178 @@ function EtapaLogin({ onLogado }: { onLogado: (responsavel: Responsavel) => void
         InputLabelProps={{ shrink: true }}
       />
 
-      {precisaCadastrar && (
-        <>
-          <TextField label="Nome completo" value={nome} onChange={(e) => setNome(e.target.value)} />
-          <TextField label="E-mail" value={email} onChange={(e) => setEmail(e.target.value)} />
-          <TextField label="Bairro" value={bairro} onChange={(e) => setBairro(e.target.value)} />
-          <Stack direction="row" spacing={1.5}>
-            <TextField
-              label="Rua"
-              value={logradouro}
-              onChange={(e) => setLogradouro(e.target.value)}
-              sx={{ flex: 2 }}
-            />
-            <TextField label="Número" value={numero} onChange={(e) => setNumero(e.target.value)} sx={{ flex: 1 }} />
-          </Stack>
-          <TextField
-            label="CEP"
-            value={cep}
-            onChange={(e) => setCep(e.target.value)}
-            helperText="Usado pra localizar sua casa no mapa e ordenar as creches mais próximas."
-          />
-        </>
+      {precisaCadastrar && <TextField label="E-mail" value={email} onChange={(e) => setEmail(e.target.value)} />}
+
+      <LoadingButton fullWidth variant="contained" size="large" loading={loading} onClick={continuar}>
+        Continuar
+      </LoadingButton>
+    </Stack>
+  );
+}
+
+// ----------------------------------------------------------------------
+
+function EtapaDadosPessoais({ responsavelId, onConcluido }: { responsavelId: string; onConcluido: () => void }) {
+  const [carregando, setCarregando] = useState(true);
+  const [nome, setNome] = useState('');
+  const [telefone, setTelefone] = useState('');
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  useEffect(() => {
+    getResponsavel(responsavelId)
+      .then((r) => {
+        setNome(r.nome === 'Não informado' ? '' : r.nome);
+        setTelefone(r.telefone ?? '');
+      })
+      .finally(() => setCarregando(false));
+  }, [responsavelId]);
+
+  const confirmar = async () => {
+    setErro(null);
+    if (!nome.trim()) {
+      setErro('Informe seu nome completo pra continuar.');
+      return;
+    }
+    setSalvando(true);
+    try {
+      await atualizarResponsavel(responsavelId, { nome, telefone: telefone || undefined });
+      onConcluido();
+    } catch (e) {
+      setErro((e as Error).message);
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  if (carregando) return <Typography>Carregando seus dados…</Typography>;
+
+  return (
+    <Stack spacing={2.5}>
+      {erro && <Alert severity="error">{erro}</Alert>}
+      <TextField label="Nome completo" value={nome} onChange={(e) => setNome(e.target.value)} />
+      <TextField
+        label="WhatsApp / telefone"
+        value={telefone}
+        onChange={(e) => setTelefone(e.target.value)}
+        placeholder="Somente números, com DDD"
+      />
+      <LoadingButton variant="contained" size="large" loading={salvando} onClick={confirmar}>
+        Continuar
+      </LoadingButton>
+    </Stack>
+  );
+}
+
+// ----------------------------------------------------------------------
+
+function EtapaEndereco({
+  responsavelId,
+  onConcluido,
+}: {
+  responsavelId: string;
+  onConcluido: (bairro: string) => void;
+}) {
+  const [carregando, setCarregando] = useState(true);
+  const [cep, setCep] = useState('');
+  const [logradouro, setLogradouro] = useState('');
+  const [numero, setNumero] = useState('');
+  const [complemento, setComplemento] = useState('');
+  const [bairro, setBairro] = useState('');
+  const [buscandoCep, setBuscandoCep] = useState(false);
+  const [cepNaoEncontrado, setCepNaoEncontrado] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  useEffect(() => {
+    getResponsavel(responsavelId)
+      .then((r) => {
+        setCep(r.cep ?? '');
+        setLogradouro(r.logradouro ?? '');
+        setNumero(r.numero ?? '');
+        setComplemento(r.complemento ?? '');
+        setBairro(r.bairro === 'Não informado' ? '' : r.bairro);
+      })
+      .finally(() => setCarregando(false));
+  }, [responsavelId]);
+
+  const handleCepChange = async (valor: string) => {
+    setCep(valor);
+    setCepNaoEncontrado(false);
+    if (limparCep(valor).length !== 8) return;
+
+    setBuscandoCep(true);
+    try {
+      const endereco = await buscarEnderecoPorCep(valor);
+      if (endereco) {
+        setLogradouro(endereco.logradouro);
+        setBairro(endereco.bairro);
+      } else {
+        setCepNaoEncontrado(true);
+      }
+    } finally {
+      setBuscandoCep(false);
+    }
+  };
+
+  const confirmar = async () => {
+    setErro(null);
+    if (!bairro.trim()) {
+      setErro('Informe ao menos o bairro pra continuar.');
+      return;
+    }
+    setSalvando(true);
+    try {
+      await atualizarResponsavel(responsavelId, {
+        bairro,
+        cep: limparCep(cep) || undefined,
+        logradouro: logradouro || undefined,
+        numero: numero || undefined,
+        complemento: complemento || undefined,
+      });
+      onConcluido(bairro);
+    } catch (e) {
+      setErro((e as Error).message);
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  if (carregando) return <Typography>Carregando seus dados…</Typography>;
+
+  return (
+    <Stack spacing={2.5}>
+      <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+        Seu endereço define quais creches aparecem como mais próximas na próxima etapa — e é mostrado no mapa junto
+        com as unidades escolhidas.
+      </Typography>
+
+      {erro && <Alert severity="error">{erro}</Alert>}
+      {cepNaoEncontrado && (
+        <Alert severity="warning">CEP não encontrado — preencha o endereço manualmente abaixo.</Alert>
       )}
 
-      <LoadingButton variant="contained" size="large" loading={loading} onClick={continuar}>
-        {precisaCadastrar ? 'Cadastrar e receber código' : 'Continuar'}
+      <TextField
+        label="CEP"
+        value={cep}
+        onChange={(e) => handleCepChange(e.target.value)}
+        placeholder="Somente números"
+        slotProps={{ input: { endAdornment: buscandoCep ? <CircularProgress size={18} /> : undefined } }}
+      />
+      <TextField label="Logradouro" value={logradouro} onChange={(e) => setLogradouro(e.target.value)} />
+      <Stack direction="row" spacing={2}>
+        <TextField label="Número" value={numero} onChange={(e) => setNumero(e.target.value)} sx={{ flex: 1 }} />
+        <TextField
+          label="Complemento"
+          value={complemento}
+          onChange={(e) => setComplemento(e.target.value)}
+          sx={{ flex: 2 }}
+        />
+      </Stack>
+      <TextField label="Bairro" value={bairro} onChange={(e) => setBairro(e.target.value)} />
+
+      <LoadingButton variant="contained" size="large" loading={salvando} onClick={confirmar}>
+        Continuar
       </LoadingButton>
     </Stack>
   );
@@ -303,14 +532,21 @@ function EtapaCadastroCrianca({
 
 function EtapaEscolhaUnidades({
   crianca,
-  responsavel,
+  responsavelId,
+  bairroResponsavel,
   onConcluida,
 }: {
   crianca: Crianca;
-  responsavel: Responsavel;
+  responsavelId: string;
+  bairroResponsavel: string;
   onConcluida: () => void;
 }) {
   const [candidatas, setCandidatas] = useState<UnidadeProxima[]>([]);
+  const [moradia, setMoradia] = useState<{ label: string; latitude: number | null; longitude: number | null }>({
+    label: bairroResponsavel,
+    latitude: null,
+    longitude: null,
+  });
   const [selecionadas, setSelecionadas] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [enviando, setEnviando] = useState(false);
@@ -323,22 +559,27 @@ function EtapaEscolhaUnidades({
   const [erroRecomendacao, setErroRecomendacao] = useState<string | null>(null);
 
   useEffect(() => {
-    unidadesProximas({
-      bairro: responsavel.bairro,
-      lat: responsavel.latitude ?? undefined,
-      lng: responsavel.longitude ?? undefined,
-      anoProcesso: ANO_PROCESSO,
-    })
+    setLoading(true);
+    getResponsavel(responsavelId)
+      .then((r) => {
+        setMoradia({ label: r.logradouro ?? r.bairro, latitude: r.latitude, longitude: r.longitude });
+        return unidadesProximas({
+          bairro: r.bairro,
+          lat: r.latitude ?? undefined,
+          lng: r.longitude ?? undefined,
+          anoProcesso: ANO_PROCESSO,
+        });
+      })
       .then(setCandidatas)
       .finally(() => setLoading(false));
-  }, [responsavel.bairro, responsavel.latitude, responsavel.longitude]);
+  }, [responsavelId]);
 
   const pedirRecomendacaoIA = async () => {
     setErroRecomendacao(null);
     setPedindoRecomendacao(true);
     try {
       const resultado = await recomendarUnidadesIA({
-        responsavelId: responsavel.id,
+        responsavelId,
         criancaId: crianca.id,
         anoProcesso: ANO_PROCESSO,
       });
@@ -348,6 +589,14 @@ function EtapaEscolhaUnidades({
     } finally {
       setPedindoRecomendacao(false);
     }
+  };
+
+  const alternarSelecao = (unidadeId: string) => {
+    setSelecionadas((atual) => {
+      if (atual.includes(unidadeId)) return atual.filter((id) => id !== unidadeId);
+      if (atual.length >= 5) return atual;
+      return [...atual, unidadeId];
+    });
   };
 
   const alternarExpandida = (unidadeId: string) => {
@@ -364,14 +613,6 @@ function EtapaEscolhaUnidades({
     if (aRecomendada !== bRecomendada) return aRecomendada ? -1 : 1;
     return 0;
   });
-
-  const alternarSelecao = (unidadeId: string) => {
-    setSelecionadas((atual) => {
-      if (atual.includes(unidadeId)) return atual.filter((id) => id !== unidadeId);
-      if (atual.length >= 5) return atual;
-      return [...atual, unidadeId];
-    });
-  };
 
   const confirmarInscricao = async () => {
     setErro(null);
@@ -401,7 +642,7 @@ function EtapaEscolhaUnidades({
   return (
     <Stack spacing={2.5}>
       <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-        Escolha até 5 unidades, em ordem de preferência. Ordenamos por proximidade do seu bairro ({responsavel.bairro}
+        Escolha até 5 unidades, em ordem de preferência. Ordenamos por proximidade do seu bairro ({bairroResponsavel}
         ) e disponibilidade de vaga.
       </Typography>
 
@@ -465,12 +706,12 @@ function EtapaEscolhaUnidades({
               tipo: 'unidade',
             });
           }
-          if (responsavel.latitude != null && responsavel.longitude != null) {
+          if (moradia.latitude != null && moradia.longitude != null) {
             marcadores.push({
-              id: `moradia-${responsavel.id}`,
-              label: `Moradia — ${responsavel.logradouro ?? responsavel.bairro}`,
-              latitude: responsavel.latitude,
-              longitude: responsavel.longitude,
+              id: `moradia-${responsavelId}`,
+              label: `Moradia — ${moradia.label}`,
+              latitude: moradia.latitude,
+              longitude: moradia.longitude,
               tipo: 'moradia',
             });
           }

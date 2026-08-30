@@ -95,10 +95,11 @@ export interface Responsavel {
   data_nascimento: string;
   email: string;
   telefone: string | null;
+  cep: string | null;
   bairro: string;
   logradouro: string | null;
   numero: string | null;
-  cep: string | null;
+  complemento: string | null;
   latitude: number | null;
   longitude: number | null;
 }
@@ -211,14 +212,15 @@ export async function solicitacoesPorUnidade(anoProcesso: number) {
 
 export async function cadastrarResponsavel(input: {
   cpf: string;
-  nome: string;
   dataNascimento: string;
   email: string;
-  bairro: string;
+  nome?: string;
   telefone?: string;
+  bairro?: string;
   cep?: string;
   logradouro?: string;
   numero?: string;
+  complemento?: string;
 }) {
   const { data } = await client.post<Responsavel>('/responsaveis', input);
   return data;
@@ -226,6 +228,24 @@ export async function cadastrarResponsavel(input: {
 
 export async function getResponsavel(idOuCpf: string) {
   const { data } = await client.get<Responsavel & { criancas: Crianca[] }>(`/responsaveis/${idOuCpf}`);
+  return data;
+}
+
+export async function atualizarResponsavel(
+  id: string,
+  patch: Partial<{
+    nome: string;
+    dataNascimento: string;
+    email: string;
+    telefone: string;
+    cep: string;
+    bairro: string;
+    logradouro: string;
+    numero: string;
+    complemento: string;
+  }>
+) {
+  const { data } = await client.patch<Responsavel>(`/responsaveis/${id}`, patch);
   return data;
 }
 

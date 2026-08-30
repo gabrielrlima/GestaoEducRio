@@ -46,8 +46,12 @@ CREATE TABLE IF NOT EXISTS responsavel (
   bairro            TEXT NOT NULL,
   logradouro        TEXT,
   numero            TEXT,
+  complemento       TEXT,
   latitude          REAL,
   longitude         REAL,
+  nis                          TEXT,     -- Número de Identificação Social, opcional — usado só pra consultar Bolsa Família
+  bolsa_familia_status         TEXT CHECK (bolsa_familia_status IN ('sim','nao','nao_consultado')) NOT NULL DEFAULT 'nao_consultado',
+  bolsa_familia_consultado_em  TEXT,
   criado_em         TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

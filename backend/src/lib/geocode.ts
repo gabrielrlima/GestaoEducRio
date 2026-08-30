@@ -13,7 +13,7 @@ const TIMEOUT_MS = 4000;
 export interface EnderecoParaGeocodificar {
   logradouro?: string | null;
   numero?: string | null;
-  bairro: string;
+  bairro?: string | null;
   cep?: string | null;
 }
 
