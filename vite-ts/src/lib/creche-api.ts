@@ -119,7 +119,7 @@ export interface Crianca {
   nome_completo: string;
   data_nascimento: string;
   sexo: 'M' | 'F' | null;
-  cpf_crianca: string | null;
+  cpf_crianca: string;
 }
 
 export interface InscricaoOpcao {
@@ -265,9 +265,17 @@ export async function atualizarResponsavel(
 
 export async function cadastrarCrianca(
   responsavelId: string,
-  input: { nomeCompleto: string; dataNascimento: string; sexo?: 'M' | 'F'; cpfCrianca?: string }
+  input: { nomeCompleto: string; dataNascimento: string; cpfCrianca: string; sexo?: 'M' | 'F' }
 ) {
   const { data } = await client.post<Crianca>(`/responsaveis/${responsavelId}/criancas`, input);
+  return data;
+}
+
+export async function atualizarCrianca(
+  id: string,
+  patch: Partial<{ nomeCompleto: string; dataNascimento: string; cpfCrianca: string; sexo: 'M' | 'F' }>
+) {
+  const { data } = await client.patch<Crianca>(`/criancas/${id}`, patch);
   return data;
 }
 

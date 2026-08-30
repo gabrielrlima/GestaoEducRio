@@ -14,8 +14,10 @@ import Container from '@mui/material/Container';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import LoadingButton from '@mui/lab/LoadingButton';
+import ToggleButton from '@mui/material/ToggleButton';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import CircularProgress from '@mui/material/CircularProgress';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 
 import { limparCep, buscarEnderecoPorCep } from 'src/lib/viacep';
 import {
@@ -24,6 +26,7 @@ import {
   type Crianca,
   getResponsavel,
   criarInscricao,
+  atualizarCrianca,
   cadastrarCrianca,
   getStatusCrianca,
   unidadesProximas,
@@ -615,6 +618,150 @@ function EtapaEndereco({
 
 // ----------------------------------------------------------------------
 
+interface DadosCrianca {
+  nomeCompleto: string;
+  cpfCrianca: string;
+  dataNascimento: string;
+  sexo: 'M' | 'F' | '';
+}
+
+const CRIANCA_VAZIA: DadosCrianca = { nomeCompleto: '', cpfCrianca: '', dataNascimento: '', sexo: '' };
+
+function FormularioCrianca({
+  dados,
+  onChange,
+}: {
+  dados: DadosCrianca;
+  onChange: (dados: DadosCrianca) => void;
+}) {
+  return (
+    <Stack spacing={2}>
+      <TextField
+        label="Nome completo da criança"
+        value={dados.nomeCompleto}
+        onChange={(e) => onChange({ ...dados, nomeCompleto: e.target.value })}
+      />
+      <TextField
+        label="CPF da criança"
+        value={dados.cpfCrianca}
+        onChange={(e) => onChange({ ...dados, cpfCrianca: e.target.value })}
+        placeholder="Somente números"
+      />
+      <TextField
+        label="Data de nascimento"
+        type="date"
+        value={dados.dataNascimento}
+        onChange={(e) => onChange({ ...dados, dataNascimento: e.target.value })}
+        InputLabelProps={{ shrink: true }}
+      />
+      <ToggleButtonGroup
+        value={dados.sexo || null}
+        exclusive
+        fullWidth
+        onChange={(_e, novoValor: 'M' | 'F' | null) => onChange({ ...dados, sexo: novoValor ?? '' })}
+        sx={{
+          '& .MuiToggleButton-root.Mui-selected': {
+            bgcolor: 'primary.main',
+            color: 'primary.contrastText',
+            '&:hover': { bgcolor: 'primary.dark' },
+          },
+        }}
+      >
+        <ToggleButton value="M">Menino</ToggleButton>
+        <ToggleButton value="F">Menina</ToggleButton>
+      </ToggleButtonGroup>
+    </Stack>
+  );
+}
+
+function CriancaCard({
+  crianca,
+  onSalva,
+}: {
+  crianca: Crianca;
+  onSalva: (atualizada: Crianca) => void;
+}) {
+  const [editando, setEditando] = useState(false);
+  const [dados, setDados] = useState<DadosCrianca>({
+    nomeCompleto: crianca.nome_completo,
+    cpfCrianca: crianca.cpf_crianca,
+    dataNascimento: crianca.data_nascimento,
+    sexo: crianca.sexo ?? '',
+  });
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  const salvar = async () => {
+    setErro(null);
+    if (!dados.nomeCompleto.trim() || !dados.cpfCrianca.trim() || !dados.dataNascimento) {
+      setErro('Preencha nome, CPF e data de nascimento pra continuar.');
+      return;
+    }
+    setSalvando(true);
+    try {
+      const atualizada = await atualizarCrianca(crianca.id, {
+        nomeCompleto: dados.nomeCompleto,
+        cpfCrianca: dados.cpfCrianca,
+        dataNascimento: dados.dataNascimento,
+        sexo: dados.sexo || undefined,
+      });
+      onSalva(atualizada);
+      setEditando(false);
+    } catch (e) {
+      setErro((e as Error).message);
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  if (editando) {
+    return (
+      <Card variant="outlined" sx={{ p: 2 }}>
+        <Stack spacing={2}>
+          {erro && <Alert severity="error">{erro}</Alert>}
+          <FormularioCrianca dados={dados} onChange={setDados} />
+          <Stack direction="row" spacing={1}>
+            <LoadingButton variant="contained" loading={salvando} onClick={salvar}>
+              Salvar
+            </LoadingButton>
+            <Button
+              disabled={salvando}
+              onClick={() => {
+                setDados({
+                  nomeCompleto: crianca.nome_completo,
+                  cpfCrianca: crianca.cpf_crianca,
+                  dataNascimento: crianca.data_nascimento,
+                  sexo: crianca.sexo ?? '',
+                });
+                setErro(null);
+                setEditando(false);
+              }}
+            >
+              Cancelar
+            </Button>
+          </Stack>
+        </Stack>
+      </Card>
+    );
+  }
+
+  return (
+    <Card variant="outlined" sx={{ p: 2 }}>
+      <Stack direction="row" alignItems="center" justifyContent="space-between">
+        <Stack>
+          <Typography variant="subtitle2">{crianca.nome_completo}</Typography>
+          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+            Nascimento: {crianca.data_nascimento} · CPF: {crianca.cpf_crianca}
+          </Typography>
+        </Stack>
+        <Button size="small" onClick={() => setEditando(true)}>
+          Editar
+        </Button>
+      </Stack>
+    </Card>
+  );
+}
+
 function EtapaCadastroCrianca({
   responsavelId,
   onContinuar,
@@ -624,10 +771,7 @@ function EtapaCadastroCrianca({
 }) {
   const [carregando, setCarregando] = useState(true);
   const [criancas, setCriancas] = useState<Crianca[]>([]);
-  const [nomeCompleto, setNomeCompleto] = useState('');
-  const [cpfCrianca, setCpfCrianca] = useState('');
-  const [dataNascimento, setDataNascimento] = useState('');
-  const [sexo, setSexo] = useState<'M' | 'F' | ''>('');
+  const [dadosNovo, setDadosNovo] = useState<DadosCrianca>(CRIANCA_VAZIA);
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -639,23 +783,20 @@ function EtapaCadastroCrianca({
 
   const adicionar = async () => {
     setErro(null);
-    if (!nomeCompleto.trim() || !dataNascimento) {
-      setErro('Preencha nome e data de nascimento pra continuar.');
+    if (!dadosNovo.nomeCompleto.trim() || !dadosNovo.cpfCrianca.trim() || !dadosNovo.dataNascimento) {
+      setErro('Preencha nome, CPF e data de nascimento pra continuar.');
       return;
     }
     setLoading(true);
     try {
       const c = await cadastrarCrianca(responsavelId, {
-        nomeCompleto,
-        dataNascimento,
-        sexo: sexo || undefined,
-        cpfCrianca: cpfCrianca || undefined,
+        nomeCompleto: dadosNovo.nomeCompleto,
+        cpfCrianca: dadosNovo.cpfCrianca,
+        dataNascimento: dadosNovo.dataNascimento,
+        sexo: dadosNovo.sexo || undefined,
       });
       setCriancas((atual) => [...atual, c]);
-      setNomeCompleto('');
-      setCpfCrianca('');
-      setDataNascimento('');
-      setSexo('');
+      setDadosNovo(CRIANCA_VAZIA);
     } catch (e) {
       setErro((e as Error).message);
     } finally {
@@ -668,19 +809,20 @@ function EtapaCadastroCrianca({
   return (
     <Stack spacing={2.5}>
       <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-        Cadastre um ou mais filhos(as) — cada um pode ser inscrito separadamente nas próximas etapas.
+        Cadastre um ou mais filhos(as) — cada um pode ser inscrito separadamente nas próximas etapas. Errou algum
+        dado? Clique em &ldquo;Editar&rdquo; pra corrigir.
       </Typography>
 
       {criancas.length > 0 && (
         <Stack spacing={1}>
           {criancas.map((c) => (
-            <Card key={c.id} variant="outlined" sx={{ p: 2 }}>
-              <Typography variant="subtitle2">{c.nome_completo}</Typography>
-              <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                Nascimento: {c.data_nascimento}
-                {c.cpf_crianca ? ` · CPF: ${c.cpf_crianca}` : ''}
-              </Typography>
-            </Card>
+            <CriancaCard
+              key={c.id}
+              crianca={c}
+              onSalva={(atualizada) =>
+                setCriancas((atual) => atual.map((item) => (item.id === atualizada.id ? atualizada : item)))
+              }
+            />
           ))}
         </Stack>
       )}
@@ -689,24 +831,7 @@ function EtapaCadastroCrianca({
 
       <Stack spacing={2}>
         <Typography variant="subtitle2">{criancas.length > 0 ? 'Adicionar outro(a) filho(a)' : 'Dados da criança'}</Typography>
-        <TextField label="Nome completo da criança" value={nomeCompleto} onChange={(e) => setNomeCompleto(e.target.value)} />
-        <TextField
-          label="CPF da criança (opcional)"
-          value={cpfCrianca}
-          onChange={(e) => setCpfCrianca(e.target.value)}
-          placeholder="Somente números"
-        />
-        <TextField
-          label="Data de nascimento"
-          type="date"
-          value={dataNascimento}
-          onChange={(e) => setDataNascimento(e.target.value)}
-          InputLabelProps={{ shrink: true }}
-        />
-        <Stack direction="row" spacing={1}>
-          <Chip label="Menino" color={sexo === 'M' ? 'primary' : 'default'} onClick={() => setSexo('M')} />
-          <Chip label="Menina" color={sexo === 'F' ? 'primary' : 'default'} onClick={() => setSexo('F')} />
-        </Stack>
+        <FormularioCrianca dados={dadosNovo} onChange={setDadosNovo} />
         <LoadingButton variant="outlined" size="large" loading={loading} onClick={adicionar}>
           Adicionar filho(a)
         </LoadingButton>
