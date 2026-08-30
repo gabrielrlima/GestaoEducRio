@@ -14,6 +14,7 @@ Registrar aqui assim que forem tomadas (não deixar só no chat):
 - **Runtime do pipeline de dados**: TypeScript/Bun nativo — scripts em `backend/src/seed/*.ts`, sem Python.
 - **Destino dos dados processados**: SQLite local (`backend/data/app.db`, via `bun:sqlite`, gitignored — cada um roda `bun run migrate && bun run seed`).
 - **Login**: admin único genérico (usuário/senha em env); mãe (portal) por CPF + data de nascimento + código de 6 dígitos enviado por e-mail (Hostinger SMTP, `contato@keyva.com.br` — cai em modo console/log se `SMTP_PASS` não estiver configurado). Sessão via token opaco em `sessao` (sem JWT).
+- **Deploy**: backend + banco no **Railway** (importação direta do GitHub, root directory `backend`, Nixpacks + `backend/railway.json`), front na **Vercel** (root directory `vite-ts`). Banco não é re-seedado na nuvem (o pipeline de seed depende de ~68MB de dataset externo não commitado) — `backend/src/db/bootstrap.ts` copia um snapshot commitado (`backend/data/seed/unidades-seed.db`, só `unidade`+`vaga_config`, sem dado de teste) pro volume persistente na primeira subida, e preserva o volume em redeploys seguintes. Passo a passo completo em [docs/desafio/deploy-runbook.md](docs/desafio/deploy-runbook.md). Decidido em 2026-08-30.
 
 ## Fluxo de Git (time)
 
@@ -85,4 +86,5 @@ Fica em `backend/` (Bun + Elysia + TypeScript, SQLite via `bun:sqlite`, sem ORM)
 - `docs/desafio/backend-spec.md` — spec completa do backend Elysia (schema DDL-ready, endpoints, como R2/R8 são resolvidos, ordem de implementação sugerida) — gerada antes do scaffold, algumas decisões de auth evoluíram durante a implementação (ver seção Backend acima para o estado real).
 - `docs/arquitetura-c4.md` — Modelo C4 (Contexto → Container → Componente) da arquitetura real implementada, com tabela de decisões de arquitetura (ADR-lite). Backend hoje é CRUD por módulo, **não CQRS** — decisão registrada e justificada nesse doc.
 - `docs/SDD.md` — **checklist de trabalho do dia**, não doc de referência estático: varredura de todas as lacunas do repo (frontend, backend, dados, produto, infra, submissão, documentação) com um checklist priorizado por dependência até o prazo das 16h30. Gerado uma vez, ponto-no-tempo — atualizar pontualmente, não regenerar do zero.
+- `docs/desafio/deploy-runbook.md` — passo a passo de deploy (Railway pro backend+banco, Vercel pro front): configuração de root directory, variáveis de ambiente, volume persistente, e por que o banco de produção usa um snapshot commitado em vez de rodar o seed na nuvem.
 - Este CLAUDE.md deve ser mantido atualizado conforme o projeto evolui — especialmente a seção Decisões acima, e quando o produto for definido e o backend for scaffolded.
