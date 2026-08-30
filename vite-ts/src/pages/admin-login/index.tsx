@@ -10,6 +10,7 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import LoadingButton from '@mui/lab/LoadingButton';
 
+import { Logo } from 'src/components/logo';
 import { loginAdmin } from 'src/lib/creche-api';
 
 // ----------------------------------------------------------------------
@@ -40,6 +41,8 @@ export default function AdminLoginPage() {
       <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', bgcolor: 'background.neutral' }}>
         <Container maxWidth="xs">
           <Card sx={{ p: 5 }}>
+            <Logo isSingle={false} sx={{ mb: 3, mx: 'auto' }} />
+
             <Typography variant="h4" sx={{ mb: 1 }}>
               Painel Admin
             </Typography>
