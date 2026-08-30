@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 
 import Card from '@mui/material/Card';
 import Grid from '@mui/material/Grid';
@@ -13,12 +13,14 @@ import CardHeader from '@mui/material/CardHeader';
 import LinearProgress from '@mui/material/LinearProgress';
 import TableContainer from '@mui/material/TableContainer';
 
+import { useTranslate } from 'src/locales';
 import { DashboardContent } from 'src/layouts/dashboard';
 import { opcoesPendentes, inconsistencias } from 'src/lib/creche-api';
 
 // ----------------------------------------------------------------------
 
 export default function PainelPage() {
+  const { t } = useTranslate('creche');
   const [pendentes, setPendentes] = useState<Awaited<ReturnType<typeof opcoesPendentes>>>([]);
   const [inconsist, setInconsist] = useState<Awaited<ReturnType<typeof inconsistencias>>>([]);
   const [loading, setLoading] = useState(true);
@@ -34,14 +36,13 @@ export default function PainelPage() {
 
   return (
     <>
-      <title>Painel de Pendências — GestaoEducRio</title>
+      <title>{t('painel.heading')} — GestaoEducRio</title>
       <DashboardContent>
         <Typography variant="h4" sx={{ mb: 1 }}>
-          Painel de Pendências
+          {t('painel.heading')}
         </Typography>
         <Typography variant="body2" sx={{ color: 'text.secondary', mb: 3 }}>
-          Resposta direta ao gap documentado no problema oficial: hoje não existe um painel que sinalize vagas
-          aguardando confirmação há muito tempo, nem inconsistências entre opções do mesmo cadastro.
+          {t('painel.descricao')}
         </Typography>
 
         {loading && <LinearProgress sx={{ mb: 3 }} />}
@@ -50,16 +51,16 @@ export default function PainelPage() {
           <Grid size={{ xs: 12, md: 6 }}>
             <Card>
               <CardHeader
-                title="Vagas 'Selecionado' aguardando confirmação"
-                subheader="Há mais de 3 dias sem resposta da família"
+                title={t('painel.pendentesTitulo')}
+                subheader={t('painel.pendentesSubtitulo')}
               />
               <TableContainer sx={{ p: 2 }}>
                 <Table size="small">
                   <TableHead>
                     <TableRow>
-                      <TableCell>Criança</TableCell>
-                      <TableCell>Unidade</TableCell>
-                      <TableCell>Desde</TableCell>
+                      <TableCell>{t('painel.tablePendentes.crianca')}</TableCell>
+                      <TableCell>{t('painel.tablePendentes.unidade')}</TableCell>
+                      <TableCell>{t('painel.tablePendentes.desde')}</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -73,7 +74,7 @@ export default function PainelPage() {
                     {!loading && pendentes.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={3} align="center" sx={{ color: 'text.secondary', py: 3 }}>
-                          Nenhuma pendência — tudo confirmado dentro do prazo.
+                          {t('painel.semPendencias')}
                         </TableCell>
                       </TableRow>
                     )}
@@ -86,23 +87,20 @@ export default function PainelPage() {
           <Grid size={{ xs: 12, md: 6 }}>
             <Card>
               <CardHeader
-                title="Inconsistências (fix de R8)"
-                subheader="Mesma criança com mais de uma oferta ativa ao mesmo tempo"
+                title={t('painel.inconsistenciasTitulo')}
+                subheader={t('painel.inconsistenciasSubtitulo')}
               />
               <div style={{ padding: 20 }}>
                 {!loading && inconsist.length === 0 && (
-                  <Alert severity="success">
-                    Nenhuma inconsistência encontrada — a trava de classificação (R8) está funcionando: nenhuma
-                    criança tem duas ofertas de vaga ativas simultaneamente.
-                  </Alert>
+                  <Alert severity="success">{t('painel.semInconsistencias')}</Alert>
                 )}
                 {inconsist.length > 0 && (
                   <TableContainer>
                     <Table size="small">
                       <TableHead>
                         <TableRow>
-                          <TableCell>Criança</TableCell>
-                          <TableCell>Opções conflitantes</TableCell>
+                          <TableCell>{t('painel.tableInconsistencias.crianca')}</TableCell>
+                          <TableCell>{t('painel.tableInconsistencias.opcoes')}</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>

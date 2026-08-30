@@ -1,0 +1,78 @@
+{
+  "nav": {
+    "subheader": "Inscrição Creche",
+    "unidades": "Unidades",
+    "painel": "Painel de Pendências"
+  },
+  "unidadesList": {
+    "heading": "Unidades de Creche",
+    "breadcrumbInscricao": "Inscrição Creche",
+    "breadcrumbUnidades": "Unidades",
+    "statTotal": "Total de unidades",
+    "statDireta": "Rede direta",
+    "statParceria": "Parceria",
+    "statComSolicitacoes": "Com solicitações",
+    "tabAll": "Todas",
+    "tabDireta": "Diretas",
+    "tabParceria": "Parceria",
+    "searchPlaceholder": "Buscar por nome ou bairro...",
+    "tableHead": {
+      "nome": "Nome",
+      "bairro": "Bairro",
+      "cre": "CRE",
+      "gestao": "Gestão",
+      "solicitacoes": "Solicitações",
+      "ocupacao": "Ocupação"
+    },
+    "codigo": "Código {{codigo}}",
+    "ocupacaoLegenda": "{{ocupadas}} de {{total}}",
+    "semVagasConfiguradas": "Sem vagas configuradas"
+  },
+  "unidadeDetail": {
+    "cre": "CRE {{cre}}",
+    "vagasPorGrupamento": "Vagas por grupamento/turno",
+    "tableVagas": {
+      "grupamento": "Grupamento",
+      "turno": "Turno",
+      "ocupadas": "Ocupadas",
+      "total": "Total"
+    },
+    "criancasInscritas": "Crianças inscritas",
+    "solicitacoesSubheader": "{{count}} solicitação(ões) — processo {{ano}}",
+    "tableFila": {
+      "crianca": "Criança",
+      "turno": "Turno",
+      "situacao": "Situação",
+      "acoes": "Ações"
+    },
+    "acaoChamar": "Chamar",
+    "acaoConfirmar": "Confirmar",
+    "acaoDesistir": "Desistir",
+    "semCriancas": "Nenhuma criança inscrita nesta unidade ainda."
+  },
+  "painel": {
+    "heading": "Painel de Pendências",
+    "descricao": "Resposta direta ao gap documentado no problema oficial: hoje não existe um painel que sinalize vagas aguardando confirmação há muito tempo, nem inconsistências entre opções do mesmo cadastro.",
+    "pendentesTitulo": "Vagas \"Selecionado\" aguardando confirmação",
+    "pendentesSubtitulo": "Há mais de 3 dias sem resposta da família",
+    "tablePendentes": {
+      "crianca": "Criança",
+      "unidade": "Unidade",
+      "desde": "Desde"
+    },
+    "semPendencias": "Nenhuma pendência — tudo confirmado dentro do prazo.",
+    "inconsistenciasTitulo": "Inconsistências (fix de R8)",
+    "inconsistenciasSubtitulo": "Mesma criança com mais de uma oferta ativa ao mesmo tempo",
+    "semInconsistencias": "Nenhuma inconsistência encontrada — a trava de classificação (R8) está funcionando: nenhuma criança tem duas ofertas de vaga ativas simultaneamente.",
+    "tableInconsistencias": {
+      "crianca": "Criança",
+      "opcoes": "Opções conflitantes"
+    }
+  },
+  "table": {
+    "dense": "Densa",
+    "rowsPerPage": "Linhas por página:",
+    "displayedRows": "{{from}}–{{to}} de {{total}}",
+    "displayedRowsMoreThan": "mais de {{to}}"
+  }
+}

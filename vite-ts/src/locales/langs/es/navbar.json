@@ -1,0 +1,12 @@
+{
+  "app": "App",
+  "job": "Empleo",
+  "user": "Usuario",
+  "travel": "Viajes",
+  "invoice": "Factura",
+  "blog": {
+    "title": "Blog",
+    "caption": "Atajos de teclado personalizados."
+  },
+  "subheader": "Subtítulo"
+}

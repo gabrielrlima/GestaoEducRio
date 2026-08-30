@@ -42,13 +42,23 @@ CREATE TABLE IF NOT EXISTS responsavel (
   data_nascimento   TEXT NOT NULL,     -- da mãe/responsável — usado no login do portal (CPF + data nascimento + código por e-mail)
   telefone          TEXT,
   email             TEXT NOT NULL,     -- obrigatório: é pra onde vai o código de verificação (2FA)
-  cep               TEXT,
+  cep               TEXT,               -- endereço residencial (principal — usado pelo motor de recomendação de creches)
   bairro            TEXT NOT NULL,
   logradouro        TEXT,
   numero            TEXT,
   complemento       TEXT,
   latitude          REAL,
   longitude         REAL,
+  trabalho_cep          TEXT,           -- endereço de trabalho — opcional, referência extra pra escolha de creches
+  trabalho_bairro       TEXT,
+  trabalho_logradouro   TEXT,
+  trabalho_numero       TEXT,
+  trabalho_complemento  TEXT,
+  alternativo_cep          TEXT,        -- endereço alternativo (ex.: casa de familiar) — opcional
+  alternativo_bairro       TEXT,
+  alternativo_logradouro   TEXT,
+  alternativo_numero       TEXT,
+  alternativo_complemento  TEXT,
   nis                          TEXT,     -- Número de Identificação Social, opcional — usado só pra consultar Bolsa Família
   bolsa_familia_status         TEXT CHECK (bolsa_familia_status IN ('sim','nao','nao_consultado')) NOT NULL DEFAULT 'nao_consultado',
   bolsa_familia_consultado_em  TEXT,
@@ -149,7 +159,7 @@ CREATE TABLE IF NOT EXISTS crianca (
   nome_completo     TEXT NOT NULL,
   data_nascimento   TEXT NOT NULL,
   sexo              TEXT CHECK (sexo IN ('M','F')),
-  cpf_crianca       TEXT,
+  cpf_crianca       TEXT NOT NULL,
   criado_em         TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

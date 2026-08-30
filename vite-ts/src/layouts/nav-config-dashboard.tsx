@@ -1,5 +1,7 @@
 import type { NavSectionProps } from 'src/components/nav-section';
 
+import { useTranslate } from 'src/locales';
+
 import { Iconify } from 'src/components/iconify';
 
 // ----------------------------------------------------------------------
@@ -20,13 +22,20 @@ const ICONS = {
  * Ícones via Iconify (não os SVGs genéricos de navbar do template) — mesmos
  * ícones usados nos cards de estatística da tela de Unidades, pra manter a
  * iconografia consistente entre o menu e o conteúdo.
+ *
+ * Hook (não const estático) porque os títulos precisam reagir à troca de
+ * idioma — ver useTranslate('creche').
  */
-export const navData: NavSectionProps['data'] = [
-  {
-    subheader: 'Inscrição Creche',
-    items: [
-      { title: 'Unidades', path: '/dashboard/creche/unidades', icon: ICONS.unidades },
-      { title: 'Painel de Pendências', path: '/dashboard/creche/painel', icon: ICONS.painel },
-    ],
-  },
-];
+export function useNavData(): NavSectionProps['data'] {
+  const { t } = useTranslate('creche');
+
+  return [
+    {
+      subheader: t('nav.subheader'),
+      items: [
+        { title: t('nav.unidades'), path: '/dashboard/creche/unidades', icon: ICONS.unidades },
+        { title: t('nav.painel'), path: '/dashboard/creche/painel', icon: ICONS.painel },
+      ],
+    },
+  ];
+}

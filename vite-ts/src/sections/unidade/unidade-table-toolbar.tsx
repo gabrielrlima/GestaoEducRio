@@ -4,6 +4,8 @@ import Box from '@mui/material/Box';
 import TextField from '@mui/material/TextField';
 import InputAdornment from '@mui/material/InputAdornment';
 
+import { useTranslate } from 'src/locales';
+
 import { Iconify } from 'src/components/iconify';
 
 // ----------------------------------------------------------------------
@@ -15,6 +17,8 @@ type Props = {
 };
 
 export function UnidadeTableToolbar({ value, onChange, onResetPage }: Props) {
+  const { t } = useTranslate('creche');
+
   const handleFilterName = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       onResetPage();
@@ -29,7 +33,7 @@ export function UnidadeTableToolbar({ value, onChange, onResetPage }: Props) {
         fullWidth
         value={value}
         onChange={handleFilterName}
-        placeholder="Buscar por nome ou bairro..."
+        placeholder={t('unidadesList.searchPlaceholder')}
         slotProps={{
           input: {
             startAdornment: (

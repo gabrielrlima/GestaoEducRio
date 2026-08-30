@@ -20,6 +20,12 @@ export interface Unidade {
   criado_em: string;
 }
 
+/** Retornado só por listUnidades — soma de vaga_config (todos grupamentos/turnos) de um ano_processo. */
+export interface UnidadeComOcupacao extends Unidade {
+  capacidade_total: number;
+  vagas_ocupadas: number;
+}
+
 export interface CreateUnidadeInput {
   escCodigo?: string;
   nome: string;

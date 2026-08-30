@@ -11,7 +11,6 @@ import { useTheme } from '@mui/material/styles';
 import { iconButtonClasses } from '@mui/material/IconButton';
 
 import { allLangs } from 'src/locales';
-import { _contacts, _notifications } from 'src/_mock';
 
 import { Logo } from 'src/components/logo';
 import { useSettingsContext } from 'src/components/settings';
@@ -26,10 +25,8 @@ import { Searchbar } from '../components/searchbar';
 import { MenuButton } from '../components/menu-button';
 import { SettingsButton } from '../components/settings-button';
 import { LanguagePopover } from '../components/language-popover';
-import { ContactsPopover } from '../components/contacts-popover';
-import { navData as dashboardNavData } from '../nav-config-dashboard';
 import { dashboardLayoutVars, dashboardNavColorVars } from './css-vars';
-import { NotificationsDrawer } from '../components/notifications-drawer';
+import { useNavData as useDashboardNavData } from '../nav-config-dashboard';
 import { MainSection, layoutClasses, HeaderSection, LayoutSection } from '../core';
 
 // ----------------------------------------------------------------------
@@ -64,6 +61,7 @@ export function DashboardLayout({
 
   const { value: open, onFalse: onClose, onTrue: onOpen } = useBoolean();
 
+  const dashboardNavData = useDashboardNavData();
   const navData = slotProps?.nav?.data ?? dashboardNavData;
 
   const isNavMini = settings.state.navLayout === 'mini';
@@ -140,12 +138,6 @@ export function DashboardLayout({
 
           {/** @slot Language popover */}
           <LanguagePopover data={allLangs} />
-
-          {/** @slot Notifications popover */}
-          <NotificationsDrawer data={_notifications} />
-
-          {/** @slot Contacts popover */}
-          <ContactsPopover data={_contacts} />
 
           {/** @slot Settings button */}
           <SettingsButton />

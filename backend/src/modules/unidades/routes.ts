@@ -47,6 +47,7 @@ export const unidadesRoutes = new Elysia({ prefix: '/unidades' })
         cre: query.cre ? Number(query.cre) : undefined,
         tipoGestao: query.tipoGestao,
         ativa: query.ativa != null ? query.ativa === 'true' : undefined,
+        anoProcesso: query.anoProcesso ? Number(query.anoProcesso) : undefined,
       }),
     {
       query: t.Object({
@@ -54,6 +55,7 @@ export const unidadesRoutes = new Elysia({ prefix: '/unidades' })
         cre: t.Optional(t.String()),
         tipoGestao: t.Optional(t.String()),
         ativa: t.Optional(t.String()),
+        anoProcesso: t.Optional(t.String()),
       }),
     }
   )

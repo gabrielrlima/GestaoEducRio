@@ -1,0 +1,78 @@
+{
+  "nav": {
+    "subheader": "Inscripción a Guardería",
+    "unidades": "Unidades",
+    "painel": "Panel de Pendientes"
+  },
+  "unidadesList": {
+    "heading": "Unidades de Guardería",
+    "breadcrumbInscricao": "Inscripción a Guardería",
+    "breadcrumbUnidades": "Unidades",
+    "statTotal": "Total de unidades",
+    "statDireta": "Red directa",
+    "statParceria": "Asociada",
+    "statComSolicitacoes": "Con solicitudes",
+    "tabAll": "Todas",
+    "tabDireta": "Directas",
+    "tabParceria": "Asociadas",
+    "searchPlaceholder": "Buscar por nombre o barrio...",
+    "tableHead": {
+      "nome": "Nombre",
+      "bairro": "Barrio",
+      "cre": "CRE",
+      "gestao": "Gestión",
+      "solicitacoes": "Solicitudes",
+      "ocupacao": "Ocupación"
+    },
+    "codigo": "Código {{codigo}}",
+    "ocupacaoLegenda": "{{ocupadas}} de {{total}}",
+    "semVagasConfiguradas": "Sin cupos configurados"
+  },
+  "unidadeDetail": {
+    "cre": "CRE {{cre}}",
+    "vagasPorGrupamento": "Cupos por grupo etario / turno",
+    "tableVagas": {
+      "grupamento": "Grupo etario",
+      "turno": "Turno",
+      "ocupadas": "Ocupados",
+      "total": "Total"
+    },
+    "criancasInscritas": "Niños inscritos",
+    "solicitacoesSubheader": "{{count}} solicitud(es) — proceso {{ano}}",
+    "tableFila": {
+      "crianca": "Niño/a",
+      "turno": "Turno",
+      "situacao": "Estado",
+      "acoes": "Acciones"
+    },
+    "acaoChamar": "Llamar",
+    "acaoConfirmar": "Confirmar",
+    "acaoDesistir": "Desistir",
+    "semCriancas": "Ningún niño inscrito en esta unidad todavía."
+  },
+  "painel": {
+    "heading": "Panel de Pendientes",
+    "descricao": "Respuesta directa al problema documentado en el planteamiento oficial: hoy no existe un panel que señale cupos esperando confirmación desde hace demasiado tiempo, ni inconsistencias entre opciones del mismo registro.",
+    "pendentesTitulo": "Cupos \"Seleccionado\" esperando confirmación",
+    "pendentesSubtitulo": "Más de 3 días sin respuesta de la familia",
+    "tablePendentes": {
+      "crianca": "Niño/a",
+      "unidade": "Unidad",
+      "desde": "Desde"
+    },
+    "semPendencias": "Ninguna pendencia — todo confirmado dentro del plazo.",
+    "inconsistenciasTitulo": "Inconsistencias (corrección de R8)",
+    "inconsistenciasSubtitulo": "El mismo niño con más de una oferta activa al mismo tiempo",
+    "semInconsistencias": "No se encontraron inconsistencias — el bloqueo de clasificación (R8) está funcionando: ningún niño tiene dos ofertas de cupo activas al mismo tiempo.",
+    "tableInconsistencias": {
+      "crianca": "Niño/a",
+      "opcoes": "Opciones en conflicto"
+    }
+  },
+  "table": {
+    "dense": "Compacta",
+    "rowsPerPage": "Filas por página:",
+    "displayedRows": "{{from}}–{{to}} de {{total}}",
+    "displayedRowsMoreThan": "más de {{to}}"
+  }
+}

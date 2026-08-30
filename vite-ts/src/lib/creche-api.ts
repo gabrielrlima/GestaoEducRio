@@ -67,6 +67,9 @@ export interface Unidade {
   latitude: number | null;
   longitude: number | null;
   ativa: 0 | 1;
+  /** Só vem preenchido em listUnidades (soma de vaga_config do ano_processo pedido). */
+  capacidade_total?: number;
+  vagas_ocupadas?: number;
 }
 
 export interface VagaConfig {
@@ -102,6 +105,20 @@ export interface Responsavel {
   complemento: string | null;
   latitude: number | null;
   longitude: number | null;
+  trabalho_cep: string | null;
+  trabalho_bairro: string | null;
+  trabalho_logradouro: string | null;
+  trabalho_numero: string | null;
+  trabalho_complemento: string | null;
+  trabalho_latitude: number | null;
+  trabalho_longitude: number | null;
+  alternativo_cep: string | null;
+  alternativo_bairro: string | null;
+  alternativo_logradouro: string | null;
+  alternativo_numero: string | null;
+  alternativo_complemento: string | null;
+  alternativo_latitude: number | null;
+  alternativo_longitude: number | null;
 }
 
 export interface Crianca {
@@ -110,6 +127,7 @@ export interface Crianca {
   nome_completo: string;
   data_nascimento: string;
   sexo: 'M' | 'F' | null;
+  cpf_crianca: string;
 }
 
 export interface InscricaoOpcao {
@@ -271,6 +289,16 @@ export async function atualizarResponsavel(
     logradouro: string;
     numero: string;
     complemento: string;
+    trabalhoCep: string;
+    trabalhoBairro: string;
+    trabalhoLogradouro: string;
+    trabalhoNumero: string;
+    trabalhoComplemento: string;
+    alternativoCep: string;
+    alternativoBairro: string;
+    alternativoLogradouro: string;
+    alternativoNumero: string;
+    alternativoComplemento: string;
   }>
 ) {
   const { data } = await client.patch<Responsavel>(`/responsaveis/${id}`, patch);
@@ -279,9 +307,17 @@ export async function atualizarResponsavel(
 
 export async function cadastrarCrianca(
   responsavelId: string,
-  input: { nomeCompleto: string; dataNascimento: string; sexo?: 'M' | 'F' }
+  input: { nomeCompleto: string; dataNascimento: string; cpfCrianca: string; sexo?: 'M' | 'F' }
 ) {
   const { data } = await client.post<Crianca>(`/responsaveis/${responsavelId}/criancas`, input);
+  return data;
+}
+
+export async function atualizarCrianca(
+  id: string,
+  patch: Partial<{ nomeCompleto: string; dataNascimento: string; cpfCrianca: string; sexo: 'M' | 'F' }>
+) {
+  const { data } = await client.patch<Crianca>(`/criancas/${id}`, patch);
   return data;
 }
 

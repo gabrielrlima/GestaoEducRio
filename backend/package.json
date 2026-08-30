@@ -5,12 +5,14 @@
   "private": true,
   "scripts": {
     "dev": "bun run --watch src/index.ts",
-    "start": "bun run src/index.ts",
+    "start": "bun run bootstrap && bun run src/index.ts",
+    "bootstrap": "bun run src/db/bootstrap.ts",
     "migrate": "bun run src/db/migrate.ts",
     "seed:unidades": "bun run src/seed/seed-unidades.ts",
     "seed:vagas": "bun run src/seed/seed-vagas.ts",
+    "seed:vagas-real": "bun run src/seed/seed-vagas-real.ts",
     "seed:historico": "bun run src/seed/seed-historico.ts",
-    "seed": "bun run seed:unidades && bun run seed:vagas && bun run seed:historico",
+    "seed": "bun run seed:unidades && bun run seed:vagas && bun run seed:vagas-real && bun run seed:historico",
     "eval:ia": "bun run src/eval/eval-recomendacao.ts"
   },
   "devDependencies": {

@@ -1,4 +1,4 @@
-import type { Namespace } from 'i18next';
+import type { TFunction, Namespace } from 'i18next';
 import type { LangCode } from './locales-config';
 
 import dayjs from 'dayjs';
@@ -12,13 +12,46 @@ import { fallbackLng, getCurrentLang } from './locales-config';
 
 // ----------------------------------------------------------------------
 
+// Ambiente observado tem o Translator do i18next com uma referência de store
+// desalinhada da que recebe os bundles (t()/exists() retornam a key crua às
+// vezes mesmo com o resource certo presente e confirmado via
+// i18n.getResource — o gatilho exato não foi identificado a tempo, mas é
+// intermitente por idioma/namespace, não só no primeiro carregamento). Toda
+// chamada de tradução do app deve passar por makeSafeT, não usar o `t` cru
+// do react-i18next direto — ver useTranslate abaixo.
+function makeSafeT(
+   
+  t: (key: string, options?: any) => unknown,
+  i18n: { resolvedLanguage?: string; getResource: (lng: string, ns: string, key: string) => unknown },
+  namespaceKey: string
+) {
+  return (key: string, options?: Record<string, unknown>): string => {
+    const primary = String(t(key, options as never));
+    if (primary && primary !== key) return primary;
+
+    const lng = i18n.resolvedLanguage || fallbackLng;
+    const raw: unknown = i18n.getResource(lng, namespaceKey, key);
+    if (typeof raw !== 'string') return primary;
+    if (!options) return raw;
+    return raw.replace(/\{\{\s*(\w+)\s*\}\}/g, (_match, varName) =>
+      varName in options ? String(options[varName]) : `{{${varName}}}`
+    );
+  };
+}
+
 export function useTranslate(namespace?: Namespace) {
   const settings = useSettingsContext();
 
   const { t, i18n } = useTranslation(namespace);
-  const { t: tMessages } = useTranslation('messages');
+  const { t: tMessagesRaw } = useTranslation('messages');
 
   const currentLang = getCurrentLang(i18n.resolvedLanguage);
+
+  const namespaceKey =
+    typeof namespace === 'string' ? namespace : Array.isArray(namespace) ? namespace[0] : 'common';
+
+  const safeT = useCallback(makeSafeT(t, i18n, namespaceKey), [t, i18n, namespaceKey]);
+  const tMessages = useCallback(makeSafeT(tMessagesRaw, i18n, 'messages'), [tMessagesRaw, i18n]);
 
   const updateDirection = useCallback(
     (lang: LangCode) => {
@@ -59,7 +92,7 @@ export function useTranslate(namespace?: Namespace) {
   }, [handleChangeLang]);
 
   return {
-    t,
+    t: safeT as TFunction<any, any>,
     i18n,
     currentLang,
     onChangeLang: handleChangeLang,

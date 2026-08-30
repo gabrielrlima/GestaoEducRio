@@ -1,49 +1,46 @@
-import { useMemo, useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 import Box from '@mui/material/Box';
 import Tab from '@mui/material/Tab';
 import Card from '@mui/material/Card';
+import Chip from '@mui/material/Chip';
 import Grid from '@mui/material/Grid';
 import Tabs from '@mui/material/Tabs';
 import Alert from '@mui/material/Alert';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
-import Collapse from '@mui/material/Collapse';
 import { useTheme } from '@mui/material/styles';
 import Container from '@mui/material/Container';
 import TextField from '@mui/material/TextField';
-import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
+import Radio from '@mui/material/Radio';
 import LoadingButton from '@mui/lab/LoadingButton';
+import RadioGroup from '@mui/material/RadioGroup';
+import FormControl from '@mui/material/FormControl';
 import useMediaQuery from '@mui/material/useMediaQuery';
-import Chip, { type ChipProps } from '@mui/material/Chip';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import CircularProgress from '@mui/material/CircularProgress';
 
 import { limparCep, buscarEnderecoPorCep } from 'src/lib/viacep';
-import { listarEnderecos, type EnderecoResponsavel } from 'src/lib/creche-enderecos';
 import {
   getToken,
   type Turno,
   type Crianca,
   getResponsavel,
   criarInscricao,
+  atualizarCrianca,
   cadastrarCrianca,
   getStatusCrianca,
   unidadesProximas,
-  type RecomendacaoIA,
   type UnidadeProxima,
   cadastrarResponsavel,
   atualizarResponsavel,
-  recomendarUnidadesIA,
-  type BadgeRecomendacao,
   type StatusConsolidado,
   solicitarCodigoResponsavel,
   verificarCodigoResponsavel,
 } from 'src/lib/creche-api';
 
 import { Logo } from 'src/components/logo';
-import { Iconify } from 'src/components/iconify';
-import { EnderecoMap, type EnderecoMapMarcador } from 'src/components/endereco-map/endereco-map';
 
 // ----------------------------------------------------------------------
 
@@ -67,8 +64,11 @@ export default function PortalPage() {
   const [etapaMaxima, setEtapaMaxima] = useState<Etapa>(0);
   const [responsavelId, setResponsavelId] = useState<string | null>(null);
   const [bairroResponsavel, setBairroResponsavel] = useState('');
-  const [crianca, setCrianca] = useState<Crianca | null>(null);
+  const [criancas, setCriancas] = useState<Crianca[]>([]);
+  const [criancaAtivaId, setCriancaAtivaId] = useState<string | null>(null);
   const [status, setStatus] = useState<StatusConsolidado | null>(null);
+
+  const criancaAtiva = criancas.find((c) => c.id === criancaAtivaId) ?? null;
 
   useEffect(() => {
     if (getToken('responsavel')) {
@@ -83,6 +83,7 @@ export default function PortalPage() {
 
   const irParaEscolhaOuStatus = useCallback(
     async (idCrianca: string) => {
+      setCriancaAtivaId(idCrianca);
       const s = await getStatusCrianca(idCrianca);
       setStatus(s);
       irParaEtapa(s.inscricaoAtiva ? 4 : 3);
@@ -148,6 +149,7 @@ export default function PortalPage() {
             sx={{
               p: isMobile ? 1 : 2,
               width: { md: 220 },
+              flexShrink: { md: 0 },
               bgcolor: 'background.neutral',
               borderRight: { md: `1px solid ${theme.vars.palette.divider}` },
               borderBottom: { xs: `1px solid ${theme.vars.palette.divider}`, md: 'none' },
@@ -167,12 +169,19 @@ export default function PortalPage() {
             }}
           >
             {TABS.map((tab) => (
-              <Tab key={tab.value} value={tab.value} label={tab.label} disabled={tab.value > etapaMaxima} />
+              <Tab
+                key={tab.value}
+                value={tab.value}
+                label={tab.label}
+                disabled={tab.value > etapaMaxima}
+              />
             ))}
           </Tabs>
 
-          <Box sx={{ p: { xs: 3, md: 4 }, flex: '1 1 auto' }}>
-            {etapa === 0 && <EtapaDadosPessoais responsavelId={responsavelId} onConcluido={() => irParaEtapa(1)} />}
+          <Box sx={{ p: { xs: 3, md: 4 }, flex: '1 1 auto', minWidth: 0 }}>
+            {etapa === 0 && (
+              <EtapaDadosPessoais responsavelId={responsavelId} onConcluido={() => irParaEtapa(1)} />
+            )}
             {etapa === 1 && (
               <EtapaEndereco
                 responsavelId={responsavelId}
@@ -185,21 +194,28 @@ export default function PortalPage() {
             {etapa === 2 && (
               <EtapaCadastroCrianca
                 responsavelId={responsavelId}
-                onCriada={(c) => {
-                  setCrianca(c);
-                  irParaEscolhaOuStatus(c.id);
+                onContinuar={(todas) => {
+                  setCriancas(todas);
+                  irParaEscolhaOuStatus(todas[0].id);
                 }}
               />
             )}
-            {etapa === 3 && crianca && (
-              <EtapaEscolhaUnidades
-                crianca={crianca}
-                responsavelId={responsavelId}
-                bairroResponsavel={bairroResponsavel}
-                onConcluida={() => irParaEscolhaOuStatus(crianca.id)}
-              />
+            {etapa === 3 && criancaAtiva && (
+              <>
+                <SeletorCrianca criancas={criancas} ativaId={criancaAtivaId} onSelecionar={irParaEscolhaOuStatus} />
+                <EtapaEscolhaUnidades
+                  crianca={criancaAtiva}
+                  bairroResponsavel={bairroResponsavel}
+                  onConcluida={() => irParaEscolhaOuStatus(criancaAtiva.id)}
+                />
+              </>
             )}
-            {etapa === 4 && status && <EtapaStatus status={status} />}
+            {etapa === 4 && status && (
+              <>
+                <SeletorCrianca criancas={criancas} ativaId={criancaAtivaId} onSelecionar={irParaEscolhaOuStatus} />
+                <EtapaStatus status={status} />
+              </>
+            )}
           </Box>
         </Card>
       </Container>
@@ -310,7 +326,13 @@ function EtapaLogin({ onAutenticado }: { onAutenticado: (responsavelId: string, 
 
 // ----------------------------------------------------------------------
 
-function EtapaDadosPessoais({ responsavelId, onConcluido }: { responsavelId: string; onConcluido: () => void }) {
+function EtapaDadosPessoais({
+  responsavelId,
+  onConcluido,
+}: {
+  responsavelId: string;
+  onConcluido: () => void;
+}) {
   const [carregando, setCarregando] = useState(true);
   const [nome, setNome] = useState('');
   const [telefone, setTelefone] = useState('');
@@ -364,38 +386,34 @@ function EtapaDadosPessoais({ responsavelId, onConcluido }: { responsavelId: str
 
 // ----------------------------------------------------------------------
 
-function EtapaEndereco({
-  responsavelId,
-  onConcluido,
-}: {
-  responsavelId: string;
-  onConcluido: (bairro: string) => void;
-}) {
-  const [carregando, setCarregando] = useState(true);
-  const [cep, setCep] = useState('');
+interface DadosEndereco {
+  cep: string | null;
+  logradouro: string | null;
+  numero: string | null;
+  complemento: string | null;
+  bairro: string | null;
+}
+
+/** Estado + lógica (autofill por CEP) de um bloco de endereço — reusado pro residencial, trabalho e alternativo. */
+function useCamposEndereco() {
+  const [cep, setCepRaw] = useState('');
   const [logradouro, setLogradouro] = useState('');
   const [numero, setNumero] = useState('');
   const [complemento, setComplemento] = useState('');
   const [bairro, setBairro] = useState('');
   const [buscandoCep, setBuscandoCep] = useState(false);
   const [cepNaoEncontrado, setCepNaoEncontrado] = useState(false);
-  const [salvando, setSalvando] = useState(false);
-  const [erro, setErro] = useState<string | null>(null);
 
-  useEffect(() => {
-    getResponsavel(responsavelId)
-      .then((r) => {
-        setCep(r.cep ?? '');
-        setLogradouro(r.logradouro ?? '');
-        setNumero(r.numero ?? '');
-        setComplemento(r.complemento ?? '');
-        setBairro(r.bairro === 'Não informado' ? '' : r.bairro);
-      })
-      .finally(() => setCarregando(false));
-  }, [responsavelId]);
+  const hidratar = (dados: DadosEndereco) => {
+    setCepRaw(dados.cep ?? '');
+    setLogradouro(dados.logradouro ?? '');
+    setNumero(dados.numero ?? '');
+    setComplemento(dados.complemento ?? '');
+    setBairro(dados.bairro && dados.bairro !== 'Não informado' ? dados.bairro : '');
+  };
 
-  const handleCepChange = async (valor: string) => {
-    setCep(valor);
+  const setCep = async (valor: string) => {
+    setCepRaw(valor);
     setCepNaoEncontrado(false);
     if (limparCep(valor).length !== 8) return;
 
@@ -413,22 +431,136 @@ function EtapaEndereco({
     }
   };
 
+  return {
+    cep,
+    logradouro,
+    numero,
+    complemento,
+    bairro,
+    buscandoCep,
+    cepNaoEncontrado,
+    setCep,
+    setLogradouro,
+    setNumero,
+    setComplemento,
+    setBairro,
+    hidratar,
+    preenchido: bairro.trim().length > 0,
+    payload: () => ({
+      cep: limparCep(cep) || undefined,
+      logradouro: logradouro || undefined,
+      numero: numero || undefined,
+      complemento: complemento || undefined,
+      bairro: bairro || undefined,
+    }),
+  };
+}
+
+type CamposEndereco = ReturnType<typeof useCamposEndereco>;
+
+function BlocoEndereco({ campos, tituloBairro = 'Bairro' }: { campos: CamposEndereco; tituloBairro?: string }) {
+  return (
+    <Stack spacing={2}>
+      {campos.cepNaoEncontrado && (
+        <Alert severity="warning">CEP não encontrado — preencha o endereço manualmente abaixo.</Alert>
+      )}
+      <TextField
+        label="CEP"
+        value={campos.cep}
+        onChange={(e) => campos.setCep(e.target.value)}
+        placeholder="Somente números"
+        slotProps={{ input: { endAdornment: campos.buscandoCep ? <CircularProgress size={18} /> : undefined } }}
+      />
+      <TextField label="Logradouro" value={campos.logradouro} onChange={(e) => campos.setLogradouro(e.target.value)} />
+      <Stack direction="row" spacing={2}>
+        <TextField label="Número" value={campos.numero} onChange={(e) => campos.setNumero(e.target.value)} sx={{ flex: 1 }} />
+        <TextField
+          label="Complemento"
+          value={campos.complemento}
+          onChange={(e) => campos.setComplemento(e.target.value)}
+          sx={{ flex: 2 }}
+        />
+      </Stack>
+      <TextField label={tituloBairro} value={campos.bairro} onChange={(e) => campos.setBairro(e.target.value)} />
+    </Stack>
+  );
+}
+
+function EtapaEndereco({
+  responsavelId,
+  onConcluido,
+}: {
+  responsavelId: string;
+  onConcluido: (bairro: string) => void;
+}) {
+  const [carregando, setCarregando] = useState(true);
+  const residencial = useCamposEndereco();
+  const trabalho = useCamposEndereco();
+  const alternativo = useCamposEndereco();
+  const [mostrarTrabalho, setMostrarTrabalho] = useState(false);
+  const [mostrarAlternativo, setMostrarAlternativo] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  useEffect(() => {
+    getResponsavel(responsavelId)
+      .then((r) => {
+        residencial.hidratar({ cep: r.cep, logradouro: r.logradouro, numero: r.numero, complemento: r.complemento, bairro: r.bairro });
+        trabalho.hidratar({
+          cep: r.trabalho_cep,
+          logradouro: r.trabalho_logradouro,
+          numero: r.trabalho_numero,
+          complemento: r.trabalho_complemento,
+          bairro: r.trabalho_bairro,
+        });
+        alternativo.hidratar({
+          cep: r.alternativo_cep,
+          logradouro: r.alternativo_logradouro,
+          numero: r.alternativo_numero,
+          complemento: r.alternativo_complemento,
+          bairro: r.alternativo_bairro,
+        });
+        if (r.trabalho_bairro) setMostrarTrabalho(true);
+        if (r.alternativo_bairro) setMostrarAlternativo(true);
+      })
+      .finally(() => setCarregando(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [responsavelId]);
+
   const confirmar = async () => {
     setErro(null);
-    if (!bairro.trim()) {
-      setErro('Informe ao menos o bairro pra continuar.');
+    if (!residencial.bairro.trim()) {
+      setErro('Informe ao menos o bairro do endereço residencial pra continuar.');
       return;
     }
     setSalvando(true);
     try {
+      const residencialPayload = residencial.payload();
+      const trabalhoPayload = mostrarTrabalho && trabalho.preenchido ? trabalho.payload() : null;
+      const alternativoPayload = mostrarAlternativo && alternativo.preenchido ? alternativo.payload() : null;
+
       await atualizarResponsavel(responsavelId, {
-        bairro,
-        cep: limparCep(cep) || undefined,
-        logradouro: logradouro || undefined,
-        numero: numero || undefined,
-        complemento: complemento || undefined,
+        bairro: residencialPayload.bairro,
+        cep: residencialPayload.cep,
+        logradouro: residencialPayload.logradouro,
+        numero: residencialPayload.numero,
+        complemento: residencialPayload.complemento,
+        ...(trabalhoPayload && {
+          trabalhoBairro: trabalhoPayload.bairro,
+          trabalhoCep: trabalhoPayload.cep,
+          trabalhoLogradouro: trabalhoPayload.logradouro,
+          trabalhoNumero: trabalhoPayload.numero,
+          trabalhoComplemento: trabalhoPayload.complemento,
+        }),
+        ...(alternativoPayload && {
+          alternativoBairro: alternativoPayload.bairro,
+          alternativoCep: alternativoPayload.cep,
+          alternativoLogradouro: alternativoPayload.logradouro,
+          alternativoNumero: alternativoPayload.numero,
+          alternativoComplemento: alternativoPayload.complemento,
+        }),
       });
-      onConcluido(bairro);
+      onConcluido(residencial.bairro);
     } catch (e) {
       setErro((e as Error).message);
     } finally {
@@ -439,35 +571,45 @@ function EtapaEndereco({
   if (carregando) return <Typography>Carregando seus dados…</Typography>;
 
   return (
-    <Stack spacing={2.5}>
+    <Stack spacing={3}>
       <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-        Seu endereço define quais creches aparecem como mais próximas na próxima etapa — e é mostrado no mapa junto
-        com as unidades escolhidas.
+        Seu endereço residencial define quais creches aparecem como mais próximas. Trabalho e alternativo são
+        opcionais — úteis se o dia a dia da criança acontece perto de outro endereço.
       </Typography>
 
       {erro && <Alert severity="error">{erro}</Alert>}
-      {cepNaoEncontrado && (
-        <Alert severity="warning">CEP não encontrado — preencha o endereço manualmente abaixo.</Alert>
-      )}
 
-      <TextField
-        label="CEP"
-        value={cep}
-        onChange={(e) => handleCepChange(e.target.value)}
-        placeholder="Somente números"
-        slotProps={{ input: { endAdornment: buscandoCep ? <CircularProgress size={18} /> : undefined } }}
-      />
-      <TextField label="Logradouro" value={logradouro} onChange={(e) => setLogradouro(e.target.value)} />
-      <Stack direction="row" spacing={2}>
-        <TextField label="Número" value={numero} onChange={(e) => setNumero(e.target.value)} sx={{ flex: 1 }} />
-        <TextField
-          label="Complemento"
-          value={complemento}
-          onChange={(e) => setComplemento(e.target.value)}
-          sx={{ flex: 2 }}
-        />
+      <Stack spacing={1.5}>
+        <Typography variant="subtitle2">Endereço residencial</Typography>
+        <BlocoEndereco campos={residencial} />
       </Stack>
-      <TextField label="Bairro" value={bairro} onChange={(e) => setBairro(e.target.value)} />
+
+      <Stack spacing={1.5}>
+        <Stack direction="row" alignItems="center" justifyContent="space-between">
+          <Typography variant="subtitle2">Endereço de trabalho (opcional)</Typography>
+          <Button size="small" onClick={() => setMostrarTrabalho((v) => !v)}>
+            {mostrarTrabalho ? 'Remover' : 'Adicionar'}
+          </Button>
+        </Stack>
+        {mostrarTrabalho && <BlocoEndereco campos={trabalho} />}
+      </Stack>
+
+      <Stack spacing={1.5}>
+        <Stack direction="row" alignItems="center" justifyContent="space-between">
+          <Typography variant="subtitle2">Endereço alternativo (opcional)</Typography>
+          <Button size="small" onClick={() => setMostrarAlternativo((v) => !v)}>
+            {mostrarAlternativo ? 'Remover' : 'Adicionar'}
+          </Button>
+        </Stack>
+        {mostrarAlternativo && (
+          <>
+            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+              Ex.: casa de um familiar, se a criança passa parte da semana lá.
+            </Typography>
+            <BlocoEndereco campos={alternativo} />
+          </>
+        )}
+      </Stack>
 
       <LoadingButton variant="contained" size="large" loading={salvando} onClick={confirmar}>
         Continuar
@@ -478,29 +620,179 @@ function EtapaEndereco({
 
 // ----------------------------------------------------------------------
 
+interface DadosCrianca {
+  nomeCompleto: string;
+  cpfCrianca: string;
+  dataNascimento: string;
+  sexo: 'M' | 'F' | '';
+}
+
+const CRIANCA_VAZIA: DadosCrianca = { nomeCompleto: '', cpfCrianca: '', dataNascimento: '', sexo: '' };
+
+function FormularioCrianca({
+  dados,
+  onChange,
+}: {
+  dados: DadosCrianca;
+  onChange: (dados: DadosCrianca) => void;
+}) {
+  return (
+    <Stack spacing={2}>
+      <TextField
+        label="Nome completo da criança"
+        value={dados.nomeCompleto}
+        onChange={(e) => onChange({ ...dados, nomeCompleto: e.target.value })}
+      />
+      <TextField
+        label="CPF da criança"
+        value={dados.cpfCrianca}
+        onChange={(e) => onChange({ ...dados, cpfCrianca: e.target.value })}
+        placeholder="Somente números"
+      />
+      <TextField
+        label="Data de nascimento"
+        type="date"
+        value={dados.dataNascimento}
+        onChange={(e) => onChange({ ...dados, dataNascimento: e.target.value })}
+        InputLabelProps={{ shrink: true }}
+      />
+      <FormControl>
+        <RadioGroup
+          row
+          value={dados.sexo || ''}
+          onChange={(e) => onChange({ ...dados, sexo: e.target.value as 'M' | 'F' })}
+        >
+          <FormControlLabel value="M" control={<Radio />} label="Menino" />
+          <FormControlLabel value="F" control={<Radio />} label="Menina" />
+        </RadioGroup>
+      </FormControl>
+    </Stack>
+  );
+}
+
+function CriancaCard({
+  crianca,
+  onSalva,
+}: {
+  crianca: Crianca;
+  onSalva: (atualizada: Crianca) => void;
+}) {
+  const [editando, setEditando] = useState(false);
+  const [dados, setDados] = useState<DadosCrianca>({
+    nomeCompleto: crianca.nome_completo,
+    cpfCrianca: crianca.cpf_crianca,
+    dataNascimento: crianca.data_nascimento,
+    sexo: crianca.sexo ?? '',
+  });
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  const salvar = async () => {
+    setErro(null);
+    if (!dados.nomeCompleto.trim() || !dados.cpfCrianca.trim() || !dados.dataNascimento) {
+      setErro('Preencha nome, CPF e data de nascimento pra continuar.');
+      return;
+    }
+    setSalvando(true);
+    try {
+      const atualizada = await atualizarCrianca(crianca.id, {
+        nomeCompleto: dados.nomeCompleto,
+        cpfCrianca: dados.cpfCrianca,
+        dataNascimento: dados.dataNascimento,
+        sexo: dados.sexo || undefined,
+      });
+      onSalva(atualizada);
+      setEditando(false);
+    } catch (e) {
+      setErro((e as Error).message);
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  if (editando) {
+    return (
+      <Card variant="outlined" sx={{ p: 2 }}>
+        <Stack spacing={2}>
+          {erro && <Alert severity="error">{erro}</Alert>}
+          <FormularioCrianca dados={dados} onChange={setDados} />
+          <Stack direction="row" spacing={1}>
+            <LoadingButton variant="contained" loading={salvando} onClick={salvar}>
+              Salvar
+            </LoadingButton>
+            <Button
+              disabled={salvando}
+              onClick={() => {
+                setDados({
+                  nomeCompleto: crianca.nome_completo,
+                  cpfCrianca: crianca.cpf_crianca,
+                  dataNascimento: crianca.data_nascimento,
+                  sexo: crianca.sexo ?? '',
+                });
+                setErro(null);
+                setEditando(false);
+              }}
+            >
+              Cancelar
+            </Button>
+          </Stack>
+        </Stack>
+      </Card>
+    );
+  }
+
+  return (
+    <Card variant="outlined" sx={{ p: 2 }}>
+      <Stack direction="row" alignItems="center" justifyContent="space-between">
+        <Stack>
+          <Typography variant="subtitle2">{crianca.nome_completo}</Typography>
+          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+            Nascimento: {crianca.data_nascimento} · CPF: {crianca.cpf_crianca}
+          </Typography>
+        </Stack>
+        <Button size="small" onClick={() => setEditando(true)}>
+          Editar
+        </Button>
+      </Stack>
+    </Card>
+  );
+}
+
 function EtapaCadastroCrianca({
   responsavelId,
-  onCriada,
+  onContinuar,
 }: {
   responsavelId: string;
-  onCriada: (crianca: Crianca) => void;
+  onContinuar: (criancas: Crianca[]) => void;
 }) {
-  const [nomeCompleto, setNomeCompleto] = useState('');
-  const [dataNascimento, setDataNascimento] = useState('');
-  const [sexo, setSexo] = useState<'M' | 'F' | ''>('');
+  const [carregando, setCarregando] = useState(true);
+  const [criancas, setCriancas] = useState<Crianca[]>([]);
+  const [dadosNovo, setDadosNovo] = useState<DadosCrianca>(CRIANCA_VAZIA);
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
-  const cadastrar = async () => {
+  useEffect(() => {
+    getResponsavel(responsavelId)
+      .then((r) => setCriancas(r.criancas))
+      .finally(() => setCarregando(false));
+  }, [responsavelId]);
+
+  const adicionar = async () => {
     setErro(null);
+    if (!dadosNovo.nomeCompleto.trim() || !dadosNovo.cpfCrianca.trim() || !dadosNovo.dataNascimento) {
+      setErro('Preencha nome, CPF e data de nascimento pra continuar.');
+      return;
+    }
     setLoading(true);
     try {
       const c = await cadastrarCrianca(responsavelId, {
-        nomeCompleto,
-        dataNascimento,
-        sexo: sexo || undefined,
+        nomeCompleto: dadosNovo.nomeCompleto,
+        cpfCrianca: dadosNovo.cpfCrianca,
+        dataNascimento: dadosNovo.dataNascimento,
+        sexo: dadosNovo.sexo || undefined,
       });
-      onCriada(c);
+      setCriancas((atual) => [...atual, c]);
+      setDadosNovo(CRIANCA_VAZIA);
     } catch (e) {
       setErro((e as Error).message);
     } finally {
@@ -508,22 +800,45 @@ function EtapaCadastroCrianca({
     }
   };
 
+  if (carregando) return <Typography>Carregando…</Typography>;
+
   return (
     <Stack spacing={2.5}>
+      <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+        Cadastre um ou mais filhos(as) — cada um pode ser inscrito separadamente nas próximas etapas. Errou algum
+        dado? Clique em &ldquo;Editar&rdquo; pra corrigir.
+      </Typography>
+
+      {criancas.length > 0 && (
+        <Stack spacing={1}>
+          {criancas.map((c) => (
+            <CriancaCard
+              key={c.id}
+              crianca={c}
+              onSalva={(atualizada) =>
+                setCriancas((atual) => atual.map((item) => (item.id === atualizada.id ? atualizada : item)))
+              }
+            />
+          ))}
+        </Stack>
+      )}
+
       {erro && <Alert severity="error">{erro}</Alert>}
-      <TextField label="Nome completo da criança" value={nomeCompleto} onChange={(e) => setNomeCompleto(e.target.value)} />
-      <TextField
-        label="Data de nascimento"
-        type="date"
-        value={dataNascimento}
-        onChange={(e) => setDataNascimento(e.target.value)}
-        InputLabelProps={{ shrink: true }}
-      />
-      <Stack direction="row" spacing={1}>
-        <Chip label="Menino" color={sexo === 'M' ? 'primary' : 'default'} onClick={() => setSexo('M')} />
-        <Chip label="Menina" color={sexo === 'F' ? 'primary' : 'default'} onClick={() => setSexo('F')} />
+
+      <Stack spacing={2}>
+        <Typography variant="subtitle2">{criancas.length > 0 ? 'Adicionar outro(a) filho(a)' : 'Dados da criança'}</Typography>
+        <FormularioCrianca dados={dadosNovo} onChange={setDadosNovo} />
+        <LoadingButton variant="outlined" size="large" loading={loading} onClick={adicionar}>
+          Adicionar filho(a)
+        </LoadingButton>
       </Stack>
-      <LoadingButton variant="contained" size="large" loading={loading} onClick={cadastrar}>
+
+      <LoadingButton
+        variant="contained"
+        size="large"
+        disabled={criancas.length === 0}
+        onClick={() => onContinuar(criancas)}
+      >
         Continuar
       </LoadingButton>
     </Stack>
@@ -532,111 +847,53 @@ function EtapaCadastroCrianca({
 
 // ----------------------------------------------------------------------
 
-/**
- * Cor semântica de cada badge do agente: verde pro que fala de chance/vaga, azul pro que
- * fala de distância, roxo pro badge de compromisso entre os dois. Badge desconhecido
- * (backend mais novo que o front) cai no `default` em vez de sumir.
- */
-const COR_DO_BADGE: Record<BadgeRecomendacao, ChipProps['color']> = {
-  'Alta chance de vaga': 'success',
-  'Muitas vagas abertas': 'success',
-  'Mais perto de casa': 'primary',
-  'Mais perto do trabalho': 'info',
-  'No caminho para o trabalho': 'info',
-  'Perto do endereço alternativo': 'info',
-  'Melhor equilíbrio': 'secondary',
-};
-
-function corDoBadge(badge: string): ChipProps['color'] {
-  return COR_DO_BADGE[badge as BadgeRecomendacao] ?? 'default';
+function SeletorCrianca({
+  criancas,
+  ativaId,
+  onSelecionar,
+}: {
+  criancas: Crianca[];
+  ativaId: string | null;
+  onSelecionar: (id: string) => void;
+}) {
+  if (criancas.length <= 1) return null;
+  return (
+    <Stack direction="row" spacing={1} sx={{ mb: 2.5, flexWrap: 'wrap', gap: 1 }}>
+      {criancas.map((c) => (
+        <Chip
+          key={c.id}
+          label={c.nome_completo}
+          color={c.id === ativaId ? 'primary' : 'default'}
+          onClick={() => onSelecionar(c.id)}
+        />
+      ))}
+    </Stack>
+  );
 }
 
-const ROTULO_PADRAO: Record<EnderecoResponsavel['tipo'], string> = {
-  moradia: 'Moradia',
-  trabalho: 'Trabalho',
-  alternativo: 'Endereço alternativo',
-};
-
-/** Texto do popup do pino: rótulo dado pela família + rua (ou bairro, se não houver rua). */
-function labelDoEndereco(endereco: EnderecoResponsavel): string {
-  const nome = endereco.rotulo?.trim() || ROTULO_PADRAO[endereco.tipo];
-  const detalhe = endereco.logradouro?.trim() || endereco.bairro?.trim();
-  return detalhe ? `${nome} — ${detalhe}` : nome;
-}
+// ----------------------------------------------------------------------
 
 function EtapaEscolhaUnidades({
   crianca,
-  responsavelId,
   bairroResponsavel,
   onConcluida,
 }: {
   crianca: Crianca;
-  responsavelId: string;
   bairroResponsavel: string;
   onConcluida: () => void;
 }) {
   const [candidatas, setCandidatas] = useState<UnidadeProxima[]>([]);
-  const [enderecos, setEnderecos] = useState<EnderecoResponsavel[]>([]);
   const [selecionadas, setSelecionadas] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
-  const [expandidas, setExpandidas] = useState<string[]>([]);
-
-  const [recomendacaoIA, setRecomendacaoIA] = useState<RecomendacaoIA | null>(null);
-  const [pedindoRecomendacao, setPedindoRecomendacao] = useState(false);
-  const [erroRecomendacao, setErroRecomendacao] = useState<string | null>(null);
 
   useEffect(() => {
-    setLoading(true);
-    // Os endereços extras (trabalho/alternativo) são enfeite do mapa: se a chamada falhar,
-    // a lista de unidades ainda precisa carregar — daí o catch isolado.
-    Promise.all([getResponsavel(responsavelId), listarEnderecos(responsavelId).catch(() => [])])
-      .then(([r, enderecosCadastrados]) => {
-        setEnderecos(enderecosCadastrados);
-        return unidadesProximas({
-          bairro: r.bairro,
-          lat: r.latitude ?? undefined,
-          lng: r.longitude ?? undefined,
-          anoProcesso: ANO_PROCESSO,
-        });
-      })
+    unidadesProximas({ bairro: bairroResponsavel, anoProcesso: ANO_PROCESSO })
       .then(setCandidatas)
       .finally(() => setLoading(false));
-  }, [responsavelId]);
-
-  // Pinos dos endereços da família: iguais em todos os cards, então calcula uma vez só.
-  const marcadoresEnderecos = useMemo<EnderecoMapMarcador[]>(
-    () =>
-      enderecos
-        .filter((e) => e.latitude != null && e.longitude != null)
-        .map((e) => ({
-          id: `endereco-${e.id}`,
-          label: labelDoEndereco(e),
-          latitude: e.latitude as number,
-          longitude: e.longitude as number,
-          tipo: e.tipo,
-        })),
-    [enderecos]
-  );
-
-  const pedirRecomendacaoIA = async () => {
-    setErroRecomendacao(null);
-    setPedindoRecomendacao(true);
-    try {
-      const resultado = await recomendarUnidadesIA({
-        responsavelId,
-        criancaId: crianca.id,
-        anoProcesso: ANO_PROCESSO,
-      });
-      setRecomendacaoIA(resultado);
-    } catch (e) {
-      setErroRecomendacao((e as Error).message);
-    } finally {
-      setPedindoRecomendacao(false);
-    }
-  };
+  }, [bairroResponsavel]);
 
   const alternarSelecao = (unidadeId: string) => {
     setSelecionadas((atual) => {
@@ -645,21 +902,6 @@ function EtapaEscolhaUnidades({
       return [...atual, unidadeId];
     });
   };
-
-  const alternarExpandida = (unidadeId: string) => {
-    setExpandidas((atual) =>
-      atual.includes(unidadeId) ? atual.filter((id) => id !== unidadeId) : [...atual, unidadeId]
-    );
-  };
-
-  // Recomendadas pela IA sobem pro topo (mantendo a ordenação por proximidade
-  // dentro de cada grupo) — todas as unidades continuam na lista, só reordena.
-  const candidatasOrdenadas = [...candidatas].sort((a, b) => {
-    const aRecomendada = recomendacaoIA?.recomendacoes.some((r) => r.unidadeId === a.unidadeId) ?? false;
-    const bRecomendada = recomendacaoIA?.recomendacoes.some((r) => r.unidadeId === b.unidadeId) ?? false;
-    if (aRecomendada !== bRecomendada) return aRecomendada ? -1 : 1;
-    return 0;
-  });
 
   const confirmarInscricao = async () => {
     setErro(null);
@@ -700,138 +942,36 @@ function EtapaEscolhaUnidades({
         </Alert>
       )}
 
-      <Card variant="outlined" sx={{ p: 2, bgcolor: 'background.neutral' }}>
-        <Stack spacing={1.5}>
-          <Stack direction="row" justifyContent="space-between" alignItems="center">
-            <Typography variant="subtitle2">Recomendação por IA</Typography>
-            <LoadingButton size="small" loading={pedindoRecomendacao} onClick={pedirRecomendacaoIA}>
-              {recomendacaoIA ? 'Pedir de novo' : 'Pedir recomendação'}
-            </LoadingButton>
-          </Stack>
-
-          {pedindoRecomendacao && (
-            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-              O agente está consultando o cadastro, calculando distâncias e conferindo as regras — leva uns 15-20s…
-            </Typography>
-          )}
-          {erroRecomendacao && <Alert severity="error">{erroRecomendacao}</Alert>}
-          {recomendacaoIA && (
-            <>
-              <Alert severity={recomendacaoIA.fonte === 'ia' ? 'success' : 'info'}>
-                {recomendacaoIA.resumo}
-                <Chip
-                  size="small"
-                  sx={{ ml: 1 }}
-                  label={recomendacaoIA.fonte === 'ia' ? 'gerado pela IA' : 'fallback determinístico'}
-                />
-              </Alert>
-
-              {recomendacaoIA.alertas?.map((alerta, i) => (
-                <Alert key={i} severity="warning">
-                  {alerta}
-                </Alert>
-              ))}
-
-              <Button
-                size="small"
-                onClick={() => setSelecionadas(recomendacaoIA.recomendacoes.slice(0, 5).map((r) => r.unidadeId))}
-              >
-                Selecionar as recomendadas
-              </Button>
-            </>
-          )}
-        </Stack>
-      </Card>
-
       <Grid container spacing={1.5}>
-        {candidatasOrdenadas.map((c) => {
+        {candidatas.map((c, index) => {
           const selecionadaIndex = selecionadas.indexOf(c.unidadeId);
           const selecionada = selecionadaIndex >= 0;
-          const recomendacao = recomendacaoIA?.recomendacoes.find((r) => r.unidadeId === c.unidadeId);
-          const expandida = expandidas.includes(c.unidadeId);
-
-          // A unidade vem primeiro: o EnderecoMap usa o primeiro marcador como centro
-          // inicial, antes do fitBounds enquadrar tudo (pinos + traçado casa→trabalho).
-          const marcadores: EnderecoMapMarcador[] = [
-            ...(c.latitude != null && c.longitude != null
-              ? [
-                  {
-                    id: `unidade-${c.unidadeId}`,
-                    label: c.nome,
-                    latitude: c.latitude,
-                    longitude: c.longitude,
-                    tipo: 'unidade' as const,
-                  },
-                ]
-              : []),
-            ...marcadoresEnderecos,
-          ];
-
           return (
             <Grid size={12} key={c.unidadeId}>
               <Card
                 variant="outlined"
                 sx={{
+                  p: 2,
+                  cursor: 'pointer',
                   borderColor: selecionada ? 'primary.main' : undefined,
                   bgcolor: selecionada ? 'primary.lighter' : undefined,
                 }}
+                onClick={() => alternarSelecao(c.unidadeId)}
               >
-                <Stack
-                  direction="row"
-                  justifyContent="space-between"
-                  alignItems="center"
-                  sx={{ p: 2, cursor: 'pointer' }}
-                  onClick={() => alternarSelecao(c.unidadeId)}
-                >
-                  <Stack sx={{ flex: 1 }}>
-                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-                      <Typography variant="subtitle2">
-                        {selecionada ? `${selecionadaIndex + 1}º — ` : ''}
-                        {c.nome}
-                      </Typography>
-                      {/* O badge é o rótulo informativo (por que ESTA unidade se destaca);
-                          o "Recomendada pela IA" fica em soft pra não competir com ele. */}
-                      {recomendacao?.badge && (
-                        <Chip size="small" color={corDoBadge(recomendacao.badge)} label={recomendacao.badge} />
-                      )}
-                      {recomendacao && (
-                        <Chip size="small" variant="soft" color="success" label="Recomendada pela IA" />
-                      )}
-                    </Stack>
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                  <Stack>
+                    <Typography variant="subtitle2">
+                      {selecionada ? `${selecionadaIndex + 1}º — ` : ''}
+                      {c.nome}
+                    </Typography>
                     <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                       {c.bairro}
                       {c.distanciaKm != null ? ` · ${c.distanciaKm.toFixed(1)} km` : c.mesmoBairro ? ' · mesmo bairro' : ''}
                       {' · '}
                       {c.vagasDisponiveis} vaga(s) disponíveis
                     </Typography>
-                    {/* `porque` agora é um parágrafo de 2-3 frases, não uma linha —
-                        body2 em vez de caption pra ficar legível. */}
-                    {recomendacao && (
-                      <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.75 }}>
-                        {recomendacao.porque}
-                      </Typography>
-                    )}
                   </Stack>
-
-                  <IconButton
-                    size="small"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      alternarExpandida(c.unidadeId);
-                    }}
-                  >
-                    <Iconify
-                      icon="eva:arrow-ios-downward-fill"
-                      sx={{ transform: expandida ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}
-                    />
-                  </IconButton>
                 </Stack>
-
-                <Collapse in={expandida} unmountOnExit>
-                  <Box sx={{ px: 2, pb: 2 }}>
-                    <EnderecoMap marcadores={marcadores} />
-                  </Box>
-                </Collapse>
               </Card>
             </Grid>
           );

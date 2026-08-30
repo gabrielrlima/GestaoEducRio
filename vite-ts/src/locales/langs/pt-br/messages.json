@@ -1,7 +1,7 @@
 {
   "languageSwitch": {
-    "success": "Language has been changed!",
-    "error": "Error changing language!",
-    "loading": "Loading..."
+    "success": "Idioma alterado!",
+    "error": "Erro ao trocar de idioma!",
+    "loading": "Carregando..."
   }
 }

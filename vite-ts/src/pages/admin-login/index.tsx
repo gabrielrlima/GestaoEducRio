@@ -12,6 +12,8 @@ import LoadingButton from '@mui/lab/LoadingButton';
 
 import { loginAdmin } from 'src/lib/creche-api';
 
+import { Logo } from 'src/components/logo';
+
 // ----------------------------------------------------------------------
 
 export default function AdminLoginPage() {
@@ -40,6 +42,8 @@ export default function AdminLoginPage() {
       <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', bgcolor: 'background.neutral' }}>
         <Container maxWidth="xs">
           <Card sx={{ p: 5 }}>
+            <Logo isSingle={false} sx={{ mb: 3, mx: 'auto' }} />
+
             <Typography variant="h4" sx={{ mb: 1 }}>
               Painel Admin
             </Typography>

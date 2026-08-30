@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { db } from '../../db/client';
 import { haversineKm } from '../../lib/geo';
 import { notFound } from '../../lib/errors';
-import type { CreateUnidadeInput, Grupamento, Turno, Unidade } from './types';
+import type { CreateUnidadeInput, Grupamento, Turno, Unidade, UnidadeComOcupacao } from './types';
 
 export function createUnidade(input: CreateUnidadeInput): Unidade {
   const id = randomUUID();
@@ -32,34 +32,52 @@ export function getUnidadeById(id: string): Unidade {
   return row;
 }
 
+/**
+ * Ocupação (capacidade_total/vagas_ocupadas) vem agregada de vaga_config —
+ * soma todos os grupamentos/turnos de um ano_processo (padrão: ano atual).
+ * Unidade sem nenhuma linha em vaga_config para o ano volta com os dois
+ * campos zerados (LEFT JOIN + COALESCE), não null — mais simples de tratar
+ * na UI (0/0 = "sem dados de vaga configurados", não erro).
+ */
 export function listUnidades(filters: {
   bairro?: string;
   cre?: number;
   tipoGestao?: string;
   ativa?: boolean;
-}): Unidade[] {
-  const conditions: string[] = [];
-  const params: Record<string, unknown> = {};
+  anoProcesso?: number;
+}): UnidadeComOcupacao[] {
+  const conditions: string[] = ['1=1'];
+  const params: Record<string, unknown> = { $anoProcesso: filters.anoProcesso ?? new Date().getFullYear() };
 
   if (filters.bairro) {
-    conditions.push('bairro LIKE $bairro');
+    conditions.push('u.bairro LIKE $bairro');
     params.$bairro = `%${filters.bairro}%`;
   }
   if (filters.cre !== undefined) {
-    conditions.push('cre = $cre');
+    conditions.push('u.cre = $cre');
     params.$cre = filters.cre;
   }
   if (filters.tipoGestao) {
-    conditions.push('tipo_gestao = $tipoGestao');
+    conditions.push('u.tipo_gestao = $tipoGestao');
     params.$tipoGestao = filters.tipoGestao;
   }
   if (filters.ativa !== undefined) {
-    conditions.push('ativa = $ativa');
+    conditions.push('u.ativa = $ativa');
     params.$ativa = filters.ativa ? 1 : 0;
   }
 
-  const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-  return db.query(`SELECT * FROM unidade ${where} ORDER BY nome`).all(params) as Unidade[];
+  return db
+    .query(
+      `SELECT u.*,
+              COALESCE(SUM(vc.capacidade_total), 0) AS capacidade_total,
+              COALESCE(SUM(vc.vagas_ocupadas), 0) AS vagas_ocupadas
+       FROM unidade u
+       LEFT JOIN vaga_config vc ON vc.unidade_id = u.id AND vc.ano_processo = $anoProcesso
+       WHERE ${conditions.join(' AND ')}
+       GROUP BY u.id
+       ORDER BY u.nome`
+    )
+    .all(params) as UnidadeComOcupacao[];
 }
 
 export function updateUnidade(id: string, patch: Partial<CreateUnidadeInput>): Unidade {
