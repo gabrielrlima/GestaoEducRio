@@ -5,6 +5,7 @@ import TableRow from '@mui/material/TableRow';
 import TableCell from '@mui/material/TableCell';
 import ListItemText from '@mui/material/ListItemText';
 
+import { useTranslate } from 'src/locales';
 import { Label } from 'src/components/label';
 import { type Unidade } from 'src/lib/creche-api';
 
@@ -17,6 +18,7 @@ type Props = {
 
 export function UnidadeTableRow({ row, totalSolicitacoes }: Props) {
   const navigate = useNavigate();
+  const { t } = useTranslate('creche');
 
   return (
     <TableRow hover onClick={() => navigate(`/dashboard/creche/unidades/${row.id}`)} sx={{ cursor: 'pointer' }}>
@@ -24,7 +26,7 @@ export function UnidadeTableRow({ row, totalSolicitacoes }: Props) {
         <Box sx={{ gap: 2, display: 'flex', alignItems: 'center' }}>
           <ListItemText
             primary={row.nome}
-            secondary={row.esc_codigo ? `Código ${row.esc_codigo}` : undefined}
+            secondary={row.esc_codigo ? t('unidadesList.codigo', { codigo: row.esc_codigo }) : undefined}
             slotProps={{
               primary: { noWrap: true, sx: { typography: 'body2' } },
               secondary: { sx: { color: 'text.disabled', typography: 'caption' } },

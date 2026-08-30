@@ -15,6 +15,7 @@ import TableBody from '@mui/material/TableBody';
 import { useTheme } from '@mui/material/styles';
 import Typography from '@mui/material/Typography';
 
+import { useTranslate } from 'src/locales';
 import { DashboardContent } from 'src/layouts/dashboard';
 import { type Unidade, listUnidades, solicitacoesPorUnidade } from 'src/lib/creche-api';
 
@@ -40,17 +41,9 @@ import { UnidadeTableToolbar } from '../unidade-table-toolbar';
 
 const ANO_PROCESSO = new Date().getFullYear();
 
-const TABLE_HEAD: TableHeadCellProps[] = [
-  { id: 'nome', label: 'Nome' },
-  { id: 'bairro', label: 'Bairro' },
-  { id: 'cre', label: 'CRE' },
-  { id: 'tipo_gestao', label: 'Gestão' },
-  { id: 'solicitacoes', label: 'Solicitações', align: 'right' },
-];
+type StatCardProps = { title: string; total: number; icon: IconifyName; color: string; numberFormatCode: string };
 
-type StatCardProps = { title: string; total: number; icon: IconifyName; color: string };
-
-function StatCard({ title, total, icon, color }: StatCardProps) {
+function StatCard({ title, total, icon, color, numberFormatCode }: StatCardProps) {
   return (
     <Stack spacing={1} sx={{ px: 3, py: 2, minWidth: 160 }}>
       <Stack direction="row" alignItems="center" spacing={1}>
@@ -59,14 +52,23 @@ function StatCard({ title, total, icon, color }: StatCardProps) {
           {title}
         </Typography>
       </Stack>
-      <Typography variant="h4">{total.toLocaleString('pt-BR')}</Typography>
+      <Typography variant="h4">{total.toLocaleString(numberFormatCode)}</Typography>
     </Stack>
   );
 }
 
 export function UnidadeListView() {
   const theme = useTheme();
+  const { t, currentLang } = useTranslate('creche');
   const table = useTable({ defaultOrderBy: 'nome', defaultRowsPerPage: 10 });
+
+  const TABLE_HEAD: TableHeadCellProps[] = [
+    { id: 'nome', label: t('unidadesList.tableHead.nome') },
+    { id: 'bairro', label: t('unidadesList.tableHead.bairro') },
+    { id: 'cre', label: t('unidadesList.tableHead.cre') },
+    { id: 'tipo_gestao', label: t('unidadesList.tableHead.gestao') },
+    { id: 'solicitacoes', label: t('unidadesList.tableHead.solicitacoes'), align: 'right' },
+  ];
 
   const [unidades, setUnidades] = useState<Unidade[]>([]);
   const [solicitacoes, setSolicitacoes] = useState<Record<string, number>>({});
@@ -87,9 +89,9 @@ export function UnidadeListView() {
   const comSolicitacao = Object.values(solicitacoes).filter((n) => n > 0).length;
 
   const TABS = [
-    { value: 'all' as const, label: 'Todas', count: unidades.length },
-    { value: 'Direta' as const, label: 'Diretas', count: getLength('Direta') },
-    { value: 'Parceria' as const, label: 'Parceria', count: getLength('Parceria') },
+    { value: 'all' as const, label: t('unidadesList.tabAll'), count: unidades.length },
+    { value: 'Direta' as const, label: t('unidadesList.tabDireta'), count: getLength('Direta') },
+    { value: 'Parceria' as const, label: t('unidadesList.tabParceria'), count: getLength('Parceria') },
   ];
 
   const handleFilterTipo = useCallback(
@@ -117,8 +119,8 @@ export function UnidadeListView() {
   return (
     <DashboardContent>
       <CustomBreadcrumbs
-        heading="Unidades de Creche"
-        links={[{ name: 'Inscrição Creche' }, { name: 'Unidades' }]}
+        heading={t('unidadesList.heading')}
+        links={[{ name: t('unidadesList.breadcrumbInscricao') }, { name: t('unidadesList.breadcrumbUnidades') }]}
         sx={{ mb: { xs: 3, md: 5 } }}
       />
 
@@ -129,28 +131,32 @@ export function UnidadeListView() {
             sx={{ py: 1, flexDirection: 'row' }}
           >
             <StatCard
-              title="Total de unidades"
+              title={t('unidadesList.statTotal')}
               total={unidades.length}
               icon="solar:home-angle-bold-duotone"
               color={theme.vars.palette.info.main}
+              numberFormatCode={currentLang.numberFormat.code}
             />
             <StatCard
-              title="Rede direta"
+              title={t('unidadesList.statDireta')}
               total={getLength('Direta')}
               icon="solar:flag-bold"
               color={theme.vars.palette.success.main}
+              numberFormatCode={currentLang.numberFormat.code}
             />
             <StatCard
-              title="Parceria"
+              title={t('unidadesList.statParceria')}
               total={getLength('Parceria')}
               icon="solar:verified-check-bold"
               color={theme.vars.palette.warning.main}
+              numberFormatCode={currentLang.numberFormat.code}
             />
             <StatCard
-              title="Com solicitações"
+              title={t('unidadesList.statComSolicitacoes')}
               total={comSolicitacao}
               icon="solar:file-text-bold"
               color={theme.vars.palette.primary.main}
+              numberFormatCode={currentLang.numberFormat.code}
             />
           </Stack>
         </Scrollbar>

@@ -1,0 +1,75 @@
+{
+  "nav": {
+    "subheader": "Daycare Enrollment",
+    "unidades": "Units",
+    "painel": "Pending Actions"
+  },
+  "unidadesList": {
+    "heading": "Daycare Units",
+    "breadcrumbInscricao": "Daycare Enrollment",
+    "breadcrumbUnidades": "Units",
+    "statTotal": "Total units",
+    "statDireta": "Direct network",
+    "statParceria": "Partnership",
+    "statComSolicitacoes": "With requests",
+    "tabAll": "All",
+    "tabDireta": "Direct",
+    "tabParceria": "Partnership",
+    "searchPlaceholder": "Search by name or neighborhood...",
+    "tableHead": {
+      "nome": "Name",
+      "bairro": "Neighborhood",
+      "cre": "CRE",
+      "gestao": "Management",
+      "solicitacoes": "Requests"
+    },
+    "codigo": "Code {{codigo}}"
+  },
+  "unidadeDetail": {
+    "cre": "CRE {{cre}}",
+    "vagasPorGrupamento": "Slots by age group / shift",
+    "tableVagas": {
+      "grupamento": "Age group",
+      "turno": "Shift",
+      "ocupadas": "Occupied",
+      "total": "Total"
+    },
+    "criancasInscritas": "Enrolled children",
+    "solicitacoesSubheader": "{{count}} request(s) — {{ano}} intake",
+    "tableFila": {
+      "crianca": "Child",
+      "turno": "Shift",
+      "situacao": "Status",
+      "acoes": "Actions"
+    },
+    "acaoChamar": "Call",
+    "acaoConfirmar": "Confirm",
+    "acaoDesistir": "Withdraw",
+    "semCriancas": "No children enrolled in this unit yet."
+  },
+  "painel": {
+    "heading": "Pending Actions Panel",
+    "descricao": "A direct response to the gap documented in the official problem statement: today there is no panel flagging slots that have been awaiting confirmation for too long, or inconsistencies between options on the same record.",
+    "pendentesTitulo": "\"Selected\" slots awaiting confirmation",
+    "pendentesSubtitulo": "More than 3 days without a response from the family",
+    "tablePendentes": {
+      "crianca": "Child",
+      "unidade": "Unit",
+      "desde": "Since"
+    },
+    "semPendencias": "No pending items — everything confirmed within the deadline.",
+    "inconsistenciasTitulo": "Inconsistencies (R8 fix)",
+    "inconsistenciasSubtitulo": "Same child with more than one active offer at the same time",
+    "semInconsistencias": "No inconsistencies found — the classification lock (R8) is working: no child has two active slot offers at the same time.",
+    "tableInconsistencias": {
+      "crianca": "Child",
+      "opcoes": "Conflicting options"
+    }
+  },
+  "table": {
+    "dense": "Compact",
+    "rowsPerPage": "Rows per page:",
+    "displayedRows": "{{from}}–{{to}} of {{total}}",
+    "displayedRowsMoreThan": "more than {{to}}"
+  }
+}

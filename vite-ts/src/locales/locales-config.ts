@@ -3,38 +3,49 @@ import type { Theme, Components } from '@mui/material/styles';
 
 import resourcesToBackend from 'i18next-resources-to-backend';
 
+// Recursos carregados estaticamente (não via backend assíncrono) — o backend
+// (i18next-resources-to-backend + import() dinâmico) fica registrado abaixo
+// só por compatibilidade, mas na prática nunca chega a popular o store nesta
+// versão/config (bug de orquestração do backendConnector, não do loader em
+// si — confirmado chamando backend.read() manualmente, que funciona). Import
+// estático é síncrono e garante que os textos apareçam sempre, sem depender
+// de timing de carregamento assíncrono.
+import ptBrCommon from './langs/pt-br/common.json';
+import ptBrMessages from './langs/pt-br/messages.json';
+import ptBrNavbar from './langs/pt-br/navbar.json';
+import ptBrCreche from './langs/pt-br/creche.json';
+import enCommon from './langs/en/common.json';
+import enMessages from './langs/en/messages.json';
+import enNavbar from './langs/en/navbar.json';
+import enCreche from './langs/en/creche.json';
+import esCommon from './langs/es/common.json';
+import esMessages from './langs/es/messages.json';
+import esNavbar from './langs/es/navbar.json';
+import esCreche from './langs/es/creche.json';
+
 // MUI Core Locales
-import {
-  frFR as frFRCore,
-  viVN as viVNCore,
-  zhCN as zhCNCore,
-  arSA as arSACore,
-} from '@mui/material/locale';
+import { esES as esESCore, ptBR as ptBRCore } from '@mui/material/locale';
 // MUI Date Pickers Locales
-import {
-  enUS as enUSDate,
-  frFR as frFRDate,
-  viVN as viVNDate,
-  zhCN as zhCNDate,
-} from '@mui/x-date-pickers/locales';
+import { enUS as enUSDate, esES as esESDate, ptBR as ptBRDate } from '@mui/x-date-pickers/locales';
 // MUI Data Grid Locales
-import {
-  enUS as enUSDataGrid,
-  frFR as frFRDataGrid,
-  viVN as viVNDataGrid,
-  zhCN as zhCNDataGrid,
-  arSD as arSDDataGrid,
-} from '@mui/x-data-grid/locales';
+import { enUS as enUSDataGrid, esES as esESDataGrid, ptBR as ptBRDataGrid } from '@mui/x-data-grid/locales';
 
 // ----------------------------------------------------------------------
 
-// Supported languages
-export const supportedLngs = ['en', 'fr', 'vi', 'cn', 'ar', 'pt-br'] as const;
+// Idiomas suportados pelo produto: português (padrão), inglês e espanhol.
+export const supportedLngs = ['en', 'es', 'pt-br'] as const;
 export type LangCode = (typeof supportedLngs)[number];
 
 // Fallback and default namespace
 export const fallbackLng: LangCode = 'pt-br';
 export const defaultNS = 'common';
+
+// Todos os namespaces usados no app precisam estar listados aqui — o backend
+// (i18next-resources-to-backend) só carrega sob demanda os namespaces que o
+// i18next já conhece via `ns` na inicialização (ver i18nOptions abaixo). Um
+// useTranslation('x') com 'x' fora desta lista fica preso em missingKey
+// pra sempre, mesmo que o JSON exista e seja importável.
+export const allNamespaces = ['common', 'messages', 'navbar', 'creche'] as const;
 
 // Storage config
 export const storageConfig = {
@@ -61,6 +72,16 @@ export type LangOption = {
 
 export const allLangs: LangOption[] = [
   {
+    value: 'pt-br',
+    label: 'Português (Brasil)',
+    countryCode: 'BR',
+    adapterLocale: 'pt-br',
+    numberFormat: { code: 'pt-BR', currency: 'BRL' },
+    systemValue: {
+      components: { ...ptBRCore.components, ...ptBRDate.components, ...ptBRDataGrid.components },
+    },
+  },
+  {
     value: 'en',
     label: 'English',
     countryCode: 'GB',
@@ -71,53 +92,13 @@ export const allLangs: LangOption[] = [
     },
   },
   {
-    value: 'fr',
-    label: 'French',
-    countryCode: 'FR',
-    adapterLocale: 'fr',
-    numberFormat: { code: 'fr-Fr', currency: 'EUR' },
+    value: 'es',
+    label: 'Español',
+    countryCode: 'ES',
+    adapterLocale: 'es',
+    numberFormat: { code: 'es-ES', currency: 'EUR' },
     systemValue: {
-      components: { ...frFRCore.components, ...frFRDate.components, ...frFRDataGrid.components },
-    },
-  },
-  {
-    value: 'vi',
-    label: 'Vietnamese',
-    countryCode: 'VN',
-    adapterLocale: 'vi',
-    numberFormat: { code: 'vi-VN', currency: 'VND' },
-    systemValue: {
-      components: { ...viVNCore.components, ...viVNDate.components, ...viVNDataGrid.components },
-    },
-  },
-  {
-    value: 'cn',
-    label: 'Chinese',
-    countryCode: 'CN',
-    adapterLocale: 'zh-cn',
-    numberFormat: { code: 'zh-CN', currency: 'CNY' },
-    systemValue: {
-      components: { ...zhCNCore.components, ...zhCNDate.components, ...zhCNDataGrid.components },
-    },
-  },
-  {
-    value: 'ar',
-    label: 'Arabic',
-    countryCode: 'SA',
-    adapterLocale: 'ar-sa',
-    numberFormat: { code: 'ar-SA', currency: 'SAR' },
-    systemValue: {
-      components: { ...arSACore.components, ...arSDDataGrid.components },
-    },
-  },
-  {
-    value: 'pt-br',
-    label: 'Português (Brasil)',
-    countryCode: 'BR',
-    adapterLocale: 'pt-br',
-    numberFormat: { code: 'pt-BR', currency: 'BRL' },
-    systemValue: {
-      components: { ...enUSDate.components, ...enUSDataGrid.components },
+      components: { ...esESCore.components, ...esESDate.components, ...esESDataGrid.components },
     },
   },
 ];
@@ -128,16 +109,22 @@ export const i18nResourceLoader = resourcesToBackend(
   (lang: LangCode, namespace: string) => import(`./langs/${lang}/${namespace}.json`)
 );
 
+const staticResources = {
+  'pt-br': { common: ptBrCommon, messages: ptBrMessages, navbar: ptBrNavbar, creche: ptBrCreche },
+  en: { common: enCommon, messages: enMessages, navbar: enNavbar, creche: enCreche },
+  es: { common: esCommon, messages: esMessages, navbar: esNavbar, creche: esCreche },
+};
+
 export function i18nOptions(lang = fallbackLng, namespace = defaultNS): InitOptions {
   return {
-    // debug: true,
     supportedLngs,
     fallbackLng,
     lng: lang,
     /********/
     fallbackNS: defaultNS,
-    defaultNS,
-    ns: namespace,
+    defaultNS: namespace,
+    ns: allNamespaces,
+    resources: staticResources,
   };
 }
 

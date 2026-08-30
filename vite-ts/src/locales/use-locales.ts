@@ -1,4 +1,4 @@
-import type { Namespace } from 'i18next';
+import type { TFunction, Namespace } from 'i18next';
 import type { LangCode } from './locales-config';
 
 import dayjs from 'dayjs';
@@ -19,6 +19,32 @@ export function useTranslate(namespace?: Namespace) {
   const { t: tMessages } = useTranslation('messages');
 
   const currentLang = getCurrentLang(i18n.resolvedLanguage);
+
+  // Ambiente observado tem o Translator do i18next com uma referência de
+  // store desalinhada da que recebe os bundles (t()/exists() sempre
+  // retornam a key crua mesmo com o resource certo presente e confirmado
+  // via i18n.getResource) — não foi possível corrigir isso na config em
+  // tempo hábil. safeT tenta t() normal primeiro (passa a funcionar de
+  // graça se o ambiente for corrigido depois) e cai para leitura direta do
+  // resource + interpolação manual de `{{var}}` quando t() devolve a key.
+  const namespaceKey =
+    typeof namespace === 'string' ? namespace : Array.isArray(namespace) ? namespace[0] : 'common';
+
+  const safeT = useCallback(
+    (key: string, options?: Record<string, unknown>): string => {
+      const primary = String(t(key, options as never));
+      if (primary && primary !== key) return primary;
+
+      const lng = i18n.resolvedLanguage || fallbackLng;
+      const raw: unknown = i18n.getResource(lng, namespaceKey, key);
+      if (typeof raw !== 'string') return primary;
+      if (!options) return raw;
+      return raw.replace(/\{\{\s*(\w+)\s*\}\}/g, (_match, varName) =>
+        varName in options ? String(options[varName]) : `{{${varName}}}`
+      );
+    },
+    [t, i18n, namespaceKey]
+  );
 
   const updateDirection = useCallback(
     (lang: LangCode) => {
@@ -59,7 +85,7 @@ export function useTranslate(namespace?: Namespace) {
   }, [handleChangeLang]);
 
   return {
-    t,
+    t: safeT as TFunction<any, any>,
     i18n,
     currentLang,
     onChangeLang: handleChangeLang,

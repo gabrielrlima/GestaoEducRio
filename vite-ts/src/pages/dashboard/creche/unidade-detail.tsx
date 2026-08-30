@@ -17,6 +17,7 @@ import CardHeader from '@mui/material/CardHeader';
 import LinearProgress from '@mui/material/LinearProgress';
 import TableContainer from '@mui/material/TableContainer';
 
+import { useTranslate } from 'src/locales';
 import { DashboardContent } from 'src/layouts/dashboard';
 import {
   type Unidade,
@@ -46,6 +47,7 @@ const SITUACAO_COR: Record<string, 'default' | 'warning' | 'success' | 'error' |
 };
 
 export default function UnidadeDetailPage() {
+  const { t } = useTranslate('creche');
   const { id = '' } = useParams();
   const [unidade, setUnidade] = useState<(Unidade & { vagas: VagaConfig[] }) | null>(null);
   const [fila, setFila] = useState<InscricaoOpcao[]>([]);
@@ -98,7 +100,8 @@ export default function UnidadeDetailPage() {
           {unidade.nome}
         </Typography>
         <Typography variant="body2" sx={{ color: 'text.secondary', mb: 3 }}>
-          {unidade.bairro} · {unidade.tipo_gestao} {unidade.cre ? `· CRE ${unidade.cre}` : ''}
+          {unidade.bairro} · {unidade.tipo_gestao}{' '}
+          {unidade.cre ? `· ${t('unidadeDetail.cre', { cre: unidade.cre })}` : ''}
         </Typography>
 
         {erro && (
@@ -110,15 +113,15 @@ export default function UnidadeDetailPage() {
         <Grid container spacing={3}>
           <Grid size={{ xs: 12, md: 4 }}>
             <Card>
-              <CardHeader title="Vagas por grupamento/turno" />
+              <CardHeader title={t('unidadeDetail.vagasPorGrupamento')} />
               <TableContainer sx={{ p: 2 }}>
                 <Table size="small">
                   <TableHead>
                     <TableRow>
-                      <TableCell>Grupamento</TableCell>
-                      <TableCell>Turno</TableCell>
-                      <TableCell align="right">Ocupadas</TableCell>
-                      <TableCell align="right">Total</TableCell>
+                      <TableCell>{t('unidadeDetail.tableVagas.grupamento')}</TableCell>
+                      <TableCell>{t('unidadeDetail.tableVagas.turno')}</TableCell>
+                      <TableCell align="right">{t('unidadeDetail.tableVagas.ocupadas')}</TableCell>
+                      <TableCell align="right">{t('unidadeDetail.tableVagas.total')}</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -138,15 +141,18 @@ export default function UnidadeDetailPage() {
 
           <Grid size={{ xs: 12, md: 8 }}>
             <Card>
-              <CardHeader title="Crianças inscritas" subheader={`${fila.length} solicitação(ões) — processo ${ANO_PROCESSO}`} />
+              <CardHeader
+                title={t('unidadeDetail.criancasInscritas')}
+                subheader={t('unidadeDetail.solicitacoesSubheader', { count: fila.length, ano: ANO_PROCESSO })}
+              />
               <TableContainer sx={{ p: 2 }}>
                 <Table size="small">
                   <TableHead>
                     <TableRow>
-                      <TableCell>Criança</TableCell>
-                      <TableCell>Turno</TableCell>
-                      <TableCell>Situação</TableCell>
-                      <TableCell align="right">Ações</TableCell>
+                      <TableCell>{t('unidadeDetail.tableFila.crianca')}</TableCell>
+                      <TableCell>{t('unidadeDetail.tableFila.turno')}</TableCell>
+                      <TableCell>{t('unidadeDetail.tableFila.situacao')}</TableCell>
+                      <TableCell align="right">{t('unidadeDetail.tableFila.acoes')}</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -166,7 +172,7 @@ export default function UnidadeDetailPage() {
                                 disabled={acaoEmAndamento === opcao.id}
                                 onClick={() => executarAcao(() => selecionarOpcao(opcao.id), opcao.id)}
                               >
-                                Chamar
+                                {t('unidadeDetail.acaoChamar')}
                               </Button>
                             )}
                             {(opcao.situacao === 'Selecionado' || opcao.situacao === 'Selecionado da lista') && (
@@ -178,7 +184,7 @@ export default function UnidadeDetailPage() {
                                   disabled={acaoEmAndamento === opcao.id}
                                   onClick={() => executarAcao(() => confirmarOpcao(opcao.id), opcao.id)}
                                 >
-                                  Confirmar
+                                  {t('unidadeDetail.acaoConfirmar')}
                                 </Button>
                                 <Button
                                   size="small"
@@ -187,7 +193,7 @@ export default function UnidadeDetailPage() {
                                   disabled={acaoEmAndamento === opcao.id}
                                   onClick={() => executarAcao(() => desistirOpcao(opcao.id), opcao.id)}
                                 >
-                                  Desistir
+                                  {t('unidadeDetail.acaoDesistir')}
                                 </Button>
                               </>
                             )}
@@ -198,7 +204,7 @@ export default function UnidadeDetailPage() {
                     {fila.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={4} align="center" sx={{ color: 'text.secondary', py: 3 }}>
-                          Nenhuma criança inscrita nesta unidade ainda.
+                          {t('unidadeDetail.semCriancas')}
                         </TableCell>
                       </TableRow>
                     )}
