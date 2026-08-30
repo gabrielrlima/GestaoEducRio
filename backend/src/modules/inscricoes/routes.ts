@@ -3,6 +3,9 @@ import {
   contagemSolicitacoesPorUnidade,
   criarInscricao,
   getInscricaoById,
+  listarPerguntas,
+  listarRespostas,
+  salvarRespostas,
   listInscricoesDoResponsavel,
 } from './service';
 
@@ -26,5 +29,26 @@ export const inscricoesRoutes = new Elysia({ prefix: '/inscricoes' })
   .get('/solicitacoes-por-unidade', ({ query }) =>
     contagemSolicitacoesPorUnidade(query.anoProcesso ? Number(query.anoProcesso) : new Date().getFullYear())
   , { query: t.Object({ anoProcesso: t.Optional(t.String()) }) })
+  .get('/perguntas', ({ query }) =>
+    listarPerguntas(query.anoProcesso ? Number(query.anoProcesso) : new Date().getFullYear())
+  , { query: t.Object({ anoProcesso: t.Optional(t.String()) }) })
   .get('/responsaveis/:id', ({ params }) => listInscricoesDoResponsavel(params.id))
+  .get('/:id/respostas', ({ params }) => listarRespostas(params.id))
+  .post(
+    '/:id/respostas',
+    ({ params, body }) => salvarRespostas(params.id, body.respostas),
+    {
+      body: t.Object({
+        respostas: t.Array(
+          t.Object({
+            perguntaId: t.String(),
+            resposta: t.Union([t.Literal('Sim'), t.Literal('Nao')]),
+            arquivoNome: t.Optional(t.String()),
+            arquivoTipo: t.Optional(t.String()),
+            arquivoBase64: t.Optional(t.String()),
+          })
+        ),
+      }),
+    }
+  )
   .get('/:id', ({ params }) => getInscricaoById(params.id));

@@ -11,7 +11,8 @@
     "seed:unidades": "bun run src/seed/seed-unidades.ts",
     "seed:vagas": "bun run src/seed/seed-vagas.ts",
     "seed:vagas-real": "bun run src/seed/seed-vagas-real.ts",
-    "seed": "bun run seed:unidades && bun run seed:vagas && bun run seed:vagas-real"
+    "seed:perguntas": "bun run src/seed/seed-perguntas.ts",
+    "seed": "bun run seed:unidades && bun run seed:vagas && bun run seed:vagas-real && bun run seed:perguntas"
   },
   "devDependencies": {
     "@types/bun": "latest",
