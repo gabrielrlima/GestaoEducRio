@@ -8,9 +8,9 @@ Prazo de entrega: **16h30 de hoje**. Primeiro commit válido só a partir das 09
 
 Registrar aqui assim que forem tomadas (não deixar só no chat):
 
-- **Eixo do desafio**: TBD (Planejamento / Inscrição-Classificação / Convocação) — ver `docs/SDD.md` seção 1 para specs candidatos.
-- **Formato de entrega**: TBD (dashboard analítico / ferramenta operacional / POC de simulação).
-- **Papel da IA dentro do produto**: TBD (obrigatório pelas regras do evento — não é só "usei Claude Code pra programar").
+- **Eixo do desafio**: **Eixo 2 — Inscrição e Classificação**, na forma de ferramenta operacional (não dashboard analítico). Decidido em 2026-08-30.
+- **Formato de entrega**: **Ferramenta operacional** — serviço que cadastra unidades de creche, gerencia vagas por unidade/grupamento/turno, e portal para o responsável cadastrar filhos e inscrevê-los em até 5 unidades (fluxo equivalente ao matricula.rio real). Ataca diretamente R2 (escolha sem critério territorial) e R8 (classificação por unidade em vez de por CPF).
+- **Papel da IA dentro do produto**: TBD (obrigatório pelas regras do evento — não é só "usei Claude Code pra programar"). Ver `docs/SDD.md`/spec do backend para candidatos concretos assim que definida.
 - **Runtime do pipeline de dados**: TBD (Python vs TypeScript/Bun).
 - **Destino dos dados processados**: TBD (JSON estático / SQLite / Postgres Railway).
 

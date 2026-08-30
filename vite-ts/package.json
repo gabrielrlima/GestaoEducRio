@@ -26,7 +26,6 @@
   "engines": {
     "node": ">=20"
   },
-  "packageManager": "yarn@1.22.22",
   "dependencies": {
     "@auth0/auth0-react": "^2.3.0",
     "@dnd-kit/core": "^6.3.1",
