@@ -15,6 +15,15 @@ Registrar aqui assim que forem tomadas (não deixar só no chat):
 - **Destino dos dados processados**: SQLite local (`backend/data/app.db`, via `bun:sqlite`, gitignored — cada um roda `bun run migrate && bun run seed`).
 - **Login**: admin único genérico (usuário/senha em env); mãe (portal) por CPF + data de nascimento + código de 6 dígitos enviado por e-mail (Hostinger SMTP, `contato@keyva.com.br` — cai em modo console/log se `SMTP_PASS` não estiver configurado). Sessão via token opaco em `sessao` (sem JWT).
 
+## Fluxo de Git (time)
+
+Trabalhando com mais de um dev (Ian + Claude) — a partir de 2026-08-30 ~13h, **não commitar direto na `main`**. Fluxo:
+
+1. Criar uma branch por tarefa (`git checkout -b <prefixo>/<nome-curto>`, ex.: `claude/deploy-vercel`, `ian/turno-selector`).
+2. Testar a mudança (manual, ver seção de verificação de cada parte) antes de mergear.
+3. Merge direto na `main` depois de testado — **sem PR formal** (decisão do time, dado o prazo). `git checkout main && git merge <branch> && git push`.
+4. Puxar (`git pull`) antes de começar qualquer branch nova, pra não divergir do que o outro já mergeou.
+
 ## Projeto
 
 Projeto de hackathon para o desafio da **Prefeitura do Rio (SME) — Inscrição Creche** ("Match Perfeito: Inteligência na Inscrição de Creche", sistema matricula.rio). O desafio tem 3 eixos-problema: Planejamento, Inscrição e Classificação, Convocação (ver `docs/desafio/briefing-oficial-sme.md`). **Eixo escolhido: Eixo 2 — Inscrição e Classificação** (ver seção Decisões acima para o escopo exato). Ver [docs/desafio/briefing-oficial-sme.md](docs/desafio/briefing-oficial-sme.md) (documento oficial, mais autoritativo) e [docs/desafio/prefeitura-rio-creches.md](docs/desafio/prefeitura-rio-creches.md) (briefing baseado nos slides) — leia antes de propor features ou schema de dados.
