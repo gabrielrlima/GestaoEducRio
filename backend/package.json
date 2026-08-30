@@ -5,13 +5,12 @@
   "private": true,
   "scripts": {
     "dev": "bun run --watch src/index.ts",
-    "start": "bun run src/index.ts",
+    "start": "bun run bootstrap && bun run src/index.ts",
     "bootstrap": "bun run src/db/bootstrap.ts",
     "migrate": "bun run src/db/migrate.ts",
     "seed:unidades": "bun run src/seed/seed-unidades.ts",
     "seed:vagas": "bun run src/seed/seed-vagas.ts",
-    "seed": "bun run seed:unidades && bun run seed:vagas",
-    "deploy:start": "bun run bootstrap && bun run migrate && bun run start"
+    "seed": "bun run seed:unidades && bun run seed:vagas"
   },
   "devDependencies": {
     "@types/bun": "latest",

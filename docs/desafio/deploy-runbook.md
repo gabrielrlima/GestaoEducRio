@@ -30,7 +30,7 @@ sqlite3 data/seed/unidades-seed.db "DELETE FROM responsavel; DELETE FROM login_c
 ## Railway — backend + banco
 
 1. [railway.com](https://railway.com) → login com GitHub → **New Project** → **Deploy from GitHub repo** → selecionar `GestaoEducRio`.
-2. No serviço criado, **Settings → Source → Root Directory** = `backend`. Railway detecta `backend/railway.json` automaticamente a partir daí (build via Nixpacks, comando de start `bun run deploy:start`, healthcheck em `/health`).
+2. No serviço criado, **Settings → Source → Root Directory** = `backend`. Railway detecta `backend/railway.json` automaticamente a partir daí (build via Nixpacks, healthcheck em `/health`). O comando de start é o próprio `start` do `package.json` (`bun run bootstrap && bun run src/index.ts`) — o builder atual (Railpack) ignora silenciosamente o `deploy.startCommand` do `railway.json` e usa o script `start` detectado, então a lógica de bootstrap precisa estar dentro dele, não só no railway.json.
 3. **Settings → Volumes → New Volume**, mount path `/app/data` (mesmo caminho relativo `data/` do `DATABASE_PATH=data/app.db`, resolvido a partir do working dir do container). Sem isso, cada redeploy perde as inscrições reais — o volume é o que faz o bootstrap "já existe" preservar dado.
 4. **Variables** — colar (sem espaço) a partir do `backend/.env` local (nunca cole a senha do e-mail em texto puro em nenhum outro lugar além dessa tela):
    ```
