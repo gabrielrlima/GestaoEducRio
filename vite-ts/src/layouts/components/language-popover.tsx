@@ -40,12 +40,13 @@ export function LanguagePopover({ data = [], sx, ...other }: LanguagePopoverProp
 
   const renderMenuList = () => (
     <CustomPopover open={open} anchorEl={anchorEl} onClose={onClose}>
-      <MenuList sx={{ width: 160, minHeight: 72 }}>
+      <MenuList sx={{ width: 220, minHeight: 72 }}>
         {data?.map((option) => (
           <MenuItem
             key={option.value}
             selected={option.value === currentLang.value}
             onClick={() => handleChangeLang(option.value as LangCode)}
+            sx={{ gap: 1.5, py: 1 }}
           >
             <FlagIcon code={option.countryCode} />
             {option.label}
