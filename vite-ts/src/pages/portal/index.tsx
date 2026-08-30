@@ -41,13 +41,14 @@ import { Logo } from 'src/components/logo';
 
 const ANO_PROCESSO = new Date().getFullYear();
 
-type Etapa = 0 | 1 | 2 | 3;
+type Etapa = 0 | 1 | 2 | 3 | 4;
 
 const TABS: Array<{ value: Etapa; label: string }> = [
-  { value: 0, label: 'Endereço' },
-  { value: 1, label: 'Cadastrar filho(a)' },
-  { value: 2, label: 'Escolher unidades' },
-  { value: 3, label: 'Status' },
+  { value: 0, label: 'Dados pessoais' },
+  { value: 1, label: 'Endereço' },
+  { value: 2, label: 'Cadastrar filho(a)' },
+  { value: 3, label: 'Escolher unidades' },
+  { value: 4, label: 'Status' },
 ];
 
 export default function PortalPage() {
@@ -76,7 +77,7 @@ export default function PortalPage() {
     async (idCrianca: string) => {
       const s = await getStatusCrianca(idCrianca);
       setStatus(s);
-      irParaEtapa(s.inscricaoAtiva ? 3 : 2);
+      irParaEtapa(s.inscricaoAtiva ? 4 : 3);
     },
     [irParaEtapa]
   );
@@ -169,15 +170,18 @@ export default function PortalPage() {
 
           <Box sx={{ p: { xs: 3, md: 4 }, flex: '1 1 auto' }}>
             {etapa === 0 && (
+              <EtapaDadosPessoais responsavelId={responsavelId} onConcluido={() => irParaEtapa(1)} />
+            )}
+            {etapa === 1 && (
               <EtapaEndereco
                 responsavelId={responsavelId}
                 onConcluido={(bairro) => {
                   setBairroResponsavel(bairro);
-                  irParaEtapa(1);
+                  irParaEtapa(2);
                 }}
               />
             )}
-            {etapa === 1 && (
+            {etapa === 2 && (
               <EtapaCadastroCrianca
                 responsavelId={responsavelId}
                 onCriada={(c) => {
@@ -186,14 +190,14 @@ export default function PortalPage() {
                 }}
               />
             )}
-            {etapa === 2 && crianca && (
+            {etapa === 3 && crianca && (
               <EtapaEscolhaUnidades
                 crianca={crianca}
                 bairroResponsavel={bairroResponsavel}
                 onConcluida={() => irParaEscolhaOuStatus(crianca.id)}
               />
             )}
-            {etapa === 3 && status && <EtapaStatus status={status} />}
+            {etapa === 4 && status && <EtapaStatus status={status} />}
           </Box>
         </Card>
       </Container>
@@ -206,7 +210,6 @@ export default function PortalPage() {
 function EtapaLogin({ onAutenticado }: { onAutenticado: (responsavelId: string, bairro: string) => void }) {
   const [cpf, setCpf] = useState('');
   const [dataNascimento, setDataNascimento] = useState('');
-  const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [precisaCadastrar, setPrecisaCadastrar] = useState(false);
   const [codigoSolicitado, setCodigoSolicitado] = useState(false);
@@ -216,21 +219,21 @@ function EtapaLogin({ onAutenticado }: { onAutenticado: (responsavelId: string, 
   const [infoEnvio, setInfoEnvio] = useState<string | null>(null);
 
   // Fluxo automático: tenta o login com CPF + data de nascimento; se não
-  // encontrar cadastro, revela nome/e-mail — ao confirmar, cria a conta e já
-  // dispara o código, sem a família precisar dizer se "já tem conta" ou não.
-  // Endereço não entra aqui: é preenchido depois, já autenticado, na área
-  // logada (primeira etapa em tabs).
+  // encontrar cadastro, revela e-mail (é o canal do código de verificação,
+  // por isso mora aqui e não em "Dados pessoais") — ao confirmar, cria a
+  // conta e já dispara o código. Nome, telefone e endereço são preenchidos
+  // depois, já autenticado, nas primeiras etapas em tabs da área logada.
   const continuar = async () => {
     setErro(null);
-    if (precisaCadastrar && (!nome.trim() || !email.trim())) {
-      setErro('Preencha nome e e-mail pra continuar.');
+    if (precisaCadastrar && !email.trim()) {
+      setErro('Informe seu e-mail pra receber o código de acesso.');
       return;
     }
 
     setLoading(true);
     try {
       if (precisaCadastrar) {
-        await cadastrarResponsavel({ cpf, nome, dataNascimento, email });
+        await cadastrarResponsavel({ cpf, dataNascimento, email });
       }
       const resultado = await solicitarCodigoResponsavel(cpf, dataNascimento);
       setInfoEnvio(
@@ -282,7 +285,7 @@ function EtapaLogin({ onAutenticado }: { onAutenticado: (responsavelId: string, 
     <Stack spacing={2.5}>
       {erro && <Alert severity="error">{erro}</Alert>}
       {precisaCadastrar && (
-        <Alert severity="info">Não encontramos seu cadastro — complete os dados abaixo pra continuar.</Alert>
+        <Alert severity="info">Não encontramos seu cadastro — informe seu e-mail pra receber o código de acesso.</Alert>
       )}
 
       <TextField label="CPF" value={cpf} onChange={(e) => setCpf(e.target.value)} placeholder="Somente números" />
@@ -294,14 +297,69 @@ function EtapaLogin({ onAutenticado }: { onAutenticado: (responsavelId: string, 
         InputLabelProps={{ shrink: true }}
       />
 
-      {precisaCadastrar && (
-        <>
-          <TextField label="Nome completo" value={nome} onChange={(e) => setNome(e.target.value)} />
-          <TextField label="E-mail" value={email} onChange={(e) => setEmail(e.target.value)} />
-        </>
-      )}
+      {precisaCadastrar && <TextField label="E-mail" value={email} onChange={(e) => setEmail(e.target.value)} />}
 
       <LoadingButton fullWidth variant="contained" size="large" loading={loading} onClick={continuar}>
+        Continuar
+      </LoadingButton>
+    </Stack>
+  );
+}
+
+// ----------------------------------------------------------------------
+
+function EtapaDadosPessoais({
+  responsavelId,
+  onConcluido,
+}: {
+  responsavelId: string;
+  onConcluido: () => void;
+}) {
+  const [carregando, setCarregando] = useState(true);
+  const [nome, setNome] = useState('');
+  const [telefone, setTelefone] = useState('');
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  useEffect(() => {
+    getResponsavel(responsavelId)
+      .then((r) => {
+        setNome(r.nome === 'Não informado' ? '' : r.nome);
+        setTelefone(r.telefone ?? '');
+      })
+      .finally(() => setCarregando(false));
+  }, [responsavelId]);
+
+  const confirmar = async () => {
+    setErro(null);
+    if (!nome.trim()) {
+      setErro('Informe seu nome completo pra continuar.');
+      return;
+    }
+    setSalvando(true);
+    try {
+      await atualizarResponsavel(responsavelId, { nome, telefone: telefone || undefined });
+      onConcluido();
+    } catch (e) {
+      setErro((e as Error).message);
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  if (carregando) return <Typography>Carregando seus dados…</Typography>;
+
+  return (
+    <Stack spacing={2.5}>
+      {erro && <Alert severity="error">{erro}</Alert>}
+      <TextField label="Nome completo" value={nome} onChange={(e) => setNome(e.target.value)} />
+      <TextField
+        label="WhatsApp / telefone"
+        value={telefone}
+        onChange={(e) => setTelefone(e.target.value)}
+        placeholder="Somente números, com DDD"
+      />
+      <LoadingButton variant="contained" size="large" loading={salvando} onClick={confirmar}>
         Continuar
       </LoadingButton>
     </Stack>

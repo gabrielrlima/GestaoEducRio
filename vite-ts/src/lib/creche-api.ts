@@ -202,9 +202,9 @@ export async function solicitacoesPorUnidade(anoProcesso: number) {
 
 export async function cadastrarResponsavel(input: {
   cpf: string;
-  nome: string;
   dataNascimento: string;
   email: string;
+  nome?: string;
   telefone?: string;
   bairro?: string;
   cep?: string;

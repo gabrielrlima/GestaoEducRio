@@ -9,7 +9,7 @@ export const responsaveisRoutes = new Elysia({ prefix: '/responsaveis' })
     {
       body: t.Object({
         cpf: t.String(),
-        nome: t.String(),
+        nome: t.Optional(t.String()),
         dataNascimento: t.String(),
         email: t.String(),
         telefone: t.Optional(t.String()),
