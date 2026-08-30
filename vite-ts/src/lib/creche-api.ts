@@ -135,6 +135,12 @@ export interface StatusConsolidado {
   situacaoConsolidada: 'confirmada' | 'aguardando_confirmacao' | 'em_fila' | 'sem_oferta' | 'sem_inscricao';
 }
 
+export interface RecomendacaoIA {
+  resumo: string;
+  recomendacoes: Array<{ unidadeId: string; porque: string }>;
+  fonte: 'ia' | 'fallback';
+}
+
 // ----------------------------------------------------------------------
 // Auth
 
@@ -224,6 +230,22 @@ export async function cadastrarCrianca(
 
 export async function getStatusCrianca(criancaId: string) {
   const { data } = await client.get<StatusConsolidado>(`/criancas/${criancaId}/status`);
+  return data;
+}
+
+// ----------------------------------------------------------------------
+// IA — agente de recomendação (backend/src/modules/ia/)
+
+export async function recomendarUnidadesIA(input: {
+  responsavelId: string;
+  criancaId: string;
+  grupamento?: Grupamento;
+  turno?: Turno;
+  anoProcesso?: number;
+}) {
+  // O agente roda um loop de tool calls (Anthropic Tool Runner) antes de responder —
+  // pode levar ~15-20s. O timeout do axios (padrão do template) precisa acomodar isso.
+  const { data } = await client.post<RecomendacaoIA>('/ia/recomendar-unidades', input, { timeout: 30_000 });
   return data;
 }
 

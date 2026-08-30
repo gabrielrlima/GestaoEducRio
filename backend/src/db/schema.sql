@@ -141,7 +141,29 @@ CREATE TABLE IF NOT EXISTS matricula (
   data_confirmacao    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Saída do agente de recomendação de IA (backend/src/modules/ia/) — registro do que foi
+-- recomendado e por quê, independente das opções que a família de fato escolheu em inscricao_opcao.
+CREATE TABLE IF NOT EXISTS ia_recomendacao (
+  id              TEXT PRIMARY KEY,
+  responsavel_id  TEXT NOT NULL REFERENCES responsavel(id),
+  crianca_id      TEXT NOT NULL REFERENCES crianca(id),
+  inscricao_id    TEXT REFERENCES inscricao(id),
+  resumo          TEXT NOT NULL,
+  criado_em       TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS ia_recomendacao_item (
+  id               TEXT PRIMARY KEY,
+  recomendacao_id  TEXT NOT NULL REFERENCES ia_recomendacao(id),
+  unidade_id       TEXT NOT NULL REFERENCES unidade(id),
+  ordem            INTEGER NOT NULL CHECK (ordem BETWEEN 1 AND 5),
+  porque           TEXT NOT NULL,
+  UNIQUE (recomendacao_id, ordem)
+);
+
 CREATE INDEX IF NOT EXISTS idx_unidade_bairro ON unidade(bairro);
 CREATE INDEX IF NOT EXISTS idx_inscricao_opcao_unidade ON inscricao_opcao(unidade_id);
 CREATE INDEX IF NOT EXISTS idx_inscricao_opcao_inscricao ON inscricao_opcao(inscricao_id);
+CREATE INDEX IF NOT EXISTS idx_ia_recomendacao_responsavel ON ia_recomendacao(responsavel_id);
+CREATE INDEX IF NOT EXISTS idx_ia_recomendacao_item_recomendacao ON ia_recomendacao_item(recomendacao_id);
 CREATE INDEX IF NOT EXISTS idx_crianca_responsavel ON crianca(responsavel_id);

@@ -18,6 +18,7 @@ import LoadingButton from '@mui/lab/LoadingButton';
 import {
   type Turno,
   type Crianca,
+  type RecomendacaoIA,
   type StatusConsolidado,
   type UnidadeProxima,
   getToken,
@@ -27,6 +28,7 @@ import {
   getStatusCrianca,
   unidadesProximas,
   cadastrarResponsavel,
+  recomendarUnidadesIA,
   solicitarCodigoResponsavel,
   verificarCodigoResponsavel,
 } from 'src/lib/creche-api';
@@ -95,9 +97,10 @@ export default function PortalPage() {
               }}
             />
           )}
-          {etapa === 2 && crianca && (
+          {etapa === 2 && crianca && responsavelId && (
             <EtapaEscolhaUnidades
               crianca={crianca}
+              responsavelId={responsavelId}
               bairroResponsavel={bairroResponsavel}
               onConcluida={() => irParaEscolhaOuStatus(crianca.id)}
             />
@@ -270,10 +273,12 @@ function EtapaCadastroCrianca({
 
 function EtapaEscolhaUnidades({
   crianca,
+  responsavelId,
   bairroResponsavel,
   onConcluida,
 }: {
   crianca: Crianca;
+  responsavelId: string;
   bairroResponsavel: string;
   onConcluida: () => void;
 }) {
@@ -284,11 +289,32 @@ function EtapaEscolhaUnidades({
   const [erro, setErro] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
 
+  const [recomendacaoIA, setRecomendacaoIA] = useState<RecomendacaoIA | null>(null);
+  const [pedindoRecomendacao, setPedindoRecomendacao] = useState(false);
+  const [erroRecomendacao, setErroRecomendacao] = useState<string | null>(null);
+
   useEffect(() => {
     unidadesProximas({ bairro: bairroResponsavel, anoProcesso: ANO_PROCESSO })
       .then(setCandidatas)
       .finally(() => setLoading(false));
   }, [bairroResponsavel]);
+
+  const pedirRecomendacaoIA = async () => {
+    setErroRecomendacao(null);
+    setPedindoRecomendacao(true);
+    try {
+      const resultado = await recomendarUnidadesIA({
+        responsavelId,
+        criancaId: crianca.id,
+        anoProcesso: ANO_PROCESSO,
+      });
+      setRecomendacaoIA(resultado);
+    } catch (e) {
+      setErroRecomendacao((e as Error).message);
+    } finally {
+      setPedindoRecomendacao(false);
+    }
+  };
 
   const alternarSelecao = (unidadeId: string) => {
     setSelecionadas((atual) => {
@@ -337,10 +363,47 @@ function EtapaEscolhaUnidades({
         </Alert>
       )}
 
+      <Card variant="outlined" sx={{ p: 2, bgcolor: 'background.neutral' }}>
+        <Stack spacing={1.5}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Typography variant="subtitle2">Recomendação por IA</Typography>
+            <LoadingButton size="small" loading={pedindoRecomendacao} onClick={pedirRecomendacaoIA}>
+              {recomendacaoIA ? 'Pedir de novo' : 'Pedir recomendação'}
+            </LoadingButton>
+          </Stack>
+
+          {pedindoRecomendacao && (
+            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+              O agente está consultando o cadastro, calculando distâncias e conferindo as regras — leva uns 15-20s…
+            </Typography>
+          )}
+          {erroRecomendacao && <Alert severity="error">{erroRecomendacao}</Alert>}
+          {recomendacaoIA && (
+            <>
+              <Alert severity={recomendacaoIA.fonte === 'ia' ? 'success' : 'info'}>
+                {recomendacaoIA.resumo}
+                <Chip
+                  size="small"
+                  sx={{ ml: 1 }}
+                  label={recomendacaoIA.fonte === 'ia' ? 'gerado pela IA' : 'fallback determinístico'}
+                />
+              </Alert>
+              <Button
+                size="small"
+                onClick={() => setSelecionadas(recomendacaoIA.recomendacoes.slice(0, 5).map((r) => r.unidadeId))}
+              >
+                Selecionar as recomendadas
+              </Button>
+            </>
+          )}
+        </Stack>
+      </Card>
+
       <Grid container spacing={1.5}>
         {candidatas.map((c, index) => {
           const selecionadaIndex = selecionadas.indexOf(c.unidadeId);
           const selecionada = selecionadaIndex >= 0;
+          const recomendacao = recomendacaoIA?.recomendacoes.find((r) => r.unidadeId === c.unidadeId);
           return (
             <Grid size={12} key={c.unidadeId}>
               <Card
@@ -354,17 +417,25 @@ function EtapaEscolhaUnidades({
                 onClick={() => alternarSelecao(c.unidadeId)}
               >
                 <Stack direction="row" justifyContent="space-between" alignItems="center">
-                  <Stack>
-                    <Typography variant="subtitle2">
-                      {selecionada ? `${selecionadaIndex + 1}º — ` : ''}
-                      {c.nome}
-                    </Typography>
+                  <Stack sx={{ flex: 1 }}>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <Typography variant="subtitle2">
+                        {selecionada ? `${selecionadaIndex + 1}º — ` : ''}
+                        {c.nome}
+                      </Typography>
+                      {recomendacao && <Chip size="small" color="success" label="Recomendada pela IA" />}
+                    </Stack>
                     <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                       {c.bairro}
                       {c.distanciaKm != null ? ` · ${c.distanciaKm.toFixed(1)} km` : c.mesmoBairro ? ' · mesmo bairro' : ''}
                       {' · '}
                       {c.vagasDisponiveis} vaga(s) disponíveis
                     </Typography>
+                    {recomendacao && (
+                      <Typography variant="caption" sx={{ color: 'success.dark', mt: 0.5 }}>
+                        {recomendacao.porque}
+                      </Typography>
+                    )}
                   </Stack>
                 </Stack>
               </Card>
