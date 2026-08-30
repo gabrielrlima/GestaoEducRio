@@ -5,8 +5,8 @@ import { useNavigate } from 'react-router';
 import Box from '@mui/material/Box';
 import TableRow from '@mui/material/TableRow';
 import TableCell from '@mui/material/TableCell';
-import LinearProgress from '@mui/material/LinearProgress';
 import ListItemText from '@mui/material/ListItemText';
+import LinearProgress from '@mui/material/LinearProgress';
 
 import { useTranslate } from 'src/locales';
 import { type Unidade } from 'src/lib/creche-api';
