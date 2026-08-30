@@ -4,6 +4,20 @@ import { haversineKm } from '../../lib/geo';
 import { notFound } from '../../lib/errors';
 import type { CreateUnidadeInput, Grupamento, Turno, Unidade, UnidadeComOcupacao } from './types';
 
+/**
+ * 128 das 1.061 unidades ativas vêm da fonte sem endereço nenhum: bairro é o placeholder
+ * "Não informado" e latitude/longitude são NULL. Não dá pra dizer se ficam perto de alguém,
+ * então elas não podem ser OFERECIDAS a uma família — cair numa dessas é o R2 (escolha sem
+ * critério territorial) acontecendo dentro da nossa própria tela.
+ *
+ * O predicado exclui essas unidades de tudo que é voltado à família (`unidadesProximas`,
+ * candidatas do agente). `listUnidades` NÃO usa o filtro de propósito: é por lá que o admin
+ * enxerga e corrige as unidades sem endereço (PATCH /unidades/:id) — ver
+ * docs/desafio/higienizacao-bairro.md.
+ */
+export const SQL_UNIDADE_LOCALIZAVEL =
+  "(u.latitude IS NOT NULL AND u.longitude IS NOT NULL OR LOWER(TRIM(COALESCE(u.bairro, ''))) NOT IN ('', 'não informado'))";
+
 export function createUnidade(input: CreateUnidadeInput): Unidade {
   const id = randomUUID();
   db.query(
@@ -153,7 +167,7 @@ export function unidadesProximas(params: {
 }): UnidadeProxima[] {
   const { lat, lng, bairro, grupamento, turno, anoProcesso, raioKm = 5, limite = 20 } = params;
 
-  const conditions = ['u.ativa = 1'];
+  const conditions = ['u.ativa = 1', SQL_UNIDADE_LOCALIZAVEL];
   const sqlParams: Record<string, unknown> = { $anoProcesso: anoProcesso };
 
   if (grupamento) {
@@ -201,10 +215,21 @@ export function unidadesProximas(params: {
     };
   });
 
-  const filtered =
+  // Unidade sem coordenada NÃO passa no filtro de raio só por não ter distância calculada:
+  // "não sei onde fica" não é o mesmo que "fica perto". Ela só entra se o bairro bater com o
+  // da família, que é o outro sinal territorial que temos.
+  const dentroDoRaio =
     lat != null && lng != null
-      ? withDistance.filter((u) => u.distanciaKm === null || u.distanciaKm <= raioKm)
+      ? withDistance.filter((u) => (u.distanciaKm != null && u.distanciaKm <= raioKm) || u.mesmoBairro)
       : withDistance;
+
+  // Família fora do raio de qualquer creche (moradia em outro município, por exemplo):
+  // devolver lista vazia esconderia opções reais. Cai para as mais próximas de fato,
+  // com a distância verdadeira na tela, em vez de relaxar o raio silenciosamente.
+  const filtered =
+    dentroDoRaio.length === 0 && lat != null && lng != null
+      ? withDistance.filter((u) => u.distanciaKm != null)
+      : dentroDoRaio;
 
   return filtered
     .sort((a, b) => {
