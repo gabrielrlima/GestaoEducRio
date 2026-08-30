@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 
 import Box from '@mui/material/Box';
 import Tab from '@mui/material/Tab';
@@ -14,6 +14,7 @@ import Container from '@mui/material/Container';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import LoadingButton from '@mui/lab/LoadingButton';
+import CircularProgress from '@mui/material/CircularProgress';
 import useMediaQuery from '@mui/material/useMediaQuery';
 
 import {
@@ -31,6 +32,7 @@ import {
   solicitarCodigoResponsavel,
   verificarCodigoResponsavel,
 } from 'src/lib/creche-api';
+import { limparCep, buscarEnderecoPorCep } from 'src/lib/viacep';
 
 import { Logo } from 'src/components/logo';
 
@@ -38,14 +40,22 @@ import { Logo } from 'src/components/logo';
 
 const ANO_PROCESSO = new Date().getFullYear();
 
-type Etapa = 0 | 1 | 2 | 3;
+type Etapa = 0 | 1 | 2 | 3 | 4;
 
 const TABS: Array<{ value: Etapa; label: string }> = [
   { value: 0, label: 'Login' },
-  { value: 1, label: 'Cadastrar filho(a)' },
-  { value: 2, label: 'Escolher unidades' },
-  { value: 3, label: 'Status' },
+  { value: 1, label: 'Endereço' },
+  { value: 2, label: 'Cadastrar filho(a)' },
+  { value: 3, label: 'Escolher unidades' },
+  { value: 4, label: 'Status' },
 ];
+
+interface DadosIdentidade {
+  cpf: string;
+  dataNascimento: string;
+  nome: string;
+  email: string;
+}
 
 export default function PortalPage() {
   const theme = useTheme();
@@ -53,6 +63,7 @@ export default function PortalPage() {
 
   const [etapa, setEtapa] = useState<Etapa>(0);
   const [etapaMaxima, setEtapaMaxima] = useState<Etapa>(0);
+  const [dadosIdentidade, setDadosIdentidade] = useState<DadosIdentidade | null>(null);
   const [responsavelId, setResponsavelId] = useState<string | null>(null);
   const [bairroResponsavel, setBairroResponsavel] = useState('');
   const [crianca, setCrianca] = useState<Crianca | null>(null);
@@ -73,7 +84,7 @@ export default function PortalPage() {
     async (idCrianca: string) => {
       const s = await getStatusCrianca(idCrianca);
       setStatus(s);
-      irParaEtapa(s.inscricaoAtiva ? 3 : 2);
+      irParaEtapa(s.inscricaoAtiva ? 4 : 3);
     },
     [irParaEtapa]
   );
@@ -140,11 +151,25 @@ export default function PortalPage() {
                 onLogado={(id, bairro) => {
                   setResponsavelId(id);
                   setBairroResponsavel(bairro);
+                  irParaEtapa(2);
+                }}
+                onNovoCadastro={(dados) => {
+                  setDadosIdentidade(dados);
                   irParaEtapa(1);
                 }}
               />
             )}
-            {etapa === 1 && responsavelId && (
+            {etapa === 1 && dadosIdentidade && (
+              <EtapaEndereco
+                dadosIdentidade={dadosIdentidade}
+                onConcluido={(id, bairro) => {
+                  setResponsavelId(id);
+                  setBairroResponsavel(bairro);
+                  irParaEtapa(2);
+                }}
+              />
+            )}
+            {etapa === 2 && responsavelId && (
               <EtapaCadastroCrianca
                 responsavelId={responsavelId}
                 onCriada={(c) => {
@@ -153,14 +178,14 @@ export default function PortalPage() {
                 }}
               />
             )}
-            {etapa === 2 && crianca && (
+            {etapa === 3 && crianca && (
               <EtapaEscolhaUnidades
                 crianca={crianca}
                 bairroResponsavel={bairroResponsavel}
                 onConcluida={() => irParaEscolhaOuStatus(crianca.id)}
               />
             )}
-            {etapa === 3 && status && <EtapaStatus status={status} />}
+            {etapa === 4 && status && <EtapaStatus status={status} />}
           </Box>
         </Card>
       </Container>
@@ -170,12 +195,17 @@ export default function PortalPage() {
 
 // ----------------------------------------------------------------------
 
-function EtapaLogin({ onLogado }: { onLogado: (responsavelId: string, bairro: string) => void }) {
+function EtapaLogin({
+  onLogado,
+  onNovoCadastro,
+}: {
+  onLogado: (responsavelId: string, bairro: string) => void;
+  onNovoCadastro: (dados: DadosIdentidade) => void;
+}) {
   const [cpf, setCpf] = useState('');
   const [dataNascimento, setDataNascimento] = useState('');
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
-  const [bairro, setBairro] = useState('');
   const [precisaCadastrar, setPrecisaCadastrar] = useState(false);
   const [codigoSolicitado, setCodigoSolicitado] = useState(false);
   const [codigo, setCodigo] = useState('');
@@ -184,15 +214,23 @@ function EtapaLogin({ onLogado }: { onLogado: (responsavelId: string, bairro: st
   const [infoEnvio, setInfoEnvio] = useState<string | null>(null);
 
   // Fluxo automático: tenta o login com CPF + data de nascimento; se não
-  // encontrar cadastro, revela os campos extras pra completar o cadastro na
-  // mesma tela, sem a família precisar dizer se "já tem conta" ou não.
+  // encontrar cadastro, revela nome/e-mail pra seguir pra etapa de endereço
+  // (onde o cadastro é de fato criado), sem a família precisar dizer se "já
+  // tem conta" ou não.
   const continuar = async () => {
     setErro(null);
+
+    if (precisaCadastrar) {
+      if (!nome.trim() || !email.trim()) {
+        setErro('Preencha nome e e-mail pra continuar.');
+        return;
+      }
+      onNovoCadastro({ cpf, dataNascimento, nome, email });
+      return;
+    }
+
     setLoading(true);
     try {
-      if (precisaCadastrar) {
-        await cadastrarResponsavel({ cpf, nome, dataNascimento, email, bairro });
-      }
       const resultado = await solicitarCodigoResponsavel(cpf, dataNascimento);
       setInfoEnvio(
         resultado.modo === 'email'
@@ -202,9 +240,8 @@ function EtapaLogin({ onLogado }: { onLogado: (responsavelId: string, bairro: st
       setCodigoSolicitado(true);
     } catch (e) {
       const mensagem = (e as Error).message;
-      if (!precisaCadastrar && /não conferem|não encontrado/i.test(mensagem)) {
+      if (/não conferem|não encontrado/i.test(mensagem)) {
         setPrecisaCadastrar(true);
-        setErro(null);
       } else {
         setErro(mensagem);
       }
@@ -260,12 +297,148 @@ function EtapaLogin({ onLogado }: { onLogado: (responsavelId: string, bairro: st
         <>
           <TextField label="Nome completo" value={nome} onChange={(e) => setNome(e.target.value)} />
           <TextField label="E-mail" value={email} onChange={(e) => setEmail(e.target.value)} />
-          <TextField label="Bairro" value={bairro} onChange={(e) => setBairro(e.target.value)} />
         </>
       )}
 
       <LoadingButton variant="contained" size="large" loading={loading} onClick={continuar}>
-        {precisaCadastrar ? 'Cadastrar e receber código' : 'Continuar'}
+        Continuar
+      </LoadingButton>
+    </Stack>
+  );
+}
+
+// ----------------------------------------------------------------------
+
+function EtapaEndereco({
+  dadosIdentidade,
+  onConcluido,
+}: {
+  dadosIdentidade: DadosIdentidade;
+  onConcluido: (responsavelId: string, bairro: string) => void;
+}) {
+  const [cep, setCep] = useState('');
+  const [logradouro, setLogradouro] = useState('');
+  const [numero, setNumero] = useState('');
+  const [complemento, setComplemento] = useState('');
+  const [bairro, setBairro] = useState('');
+  const [buscandoCep, setBuscandoCep] = useState(false);
+  const [cepNaoEncontrado, setCepNaoEncontrado] = useState(false);
+  const [codigoSolicitado, setCodigoSolicitado] = useState(false);
+  const [codigo, setCodigo] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const [infoEnvio, setInfoEnvio] = useState<string | null>(null);
+  const responsavelIdRef = useRef<string | null>(null);
+
+  const handleCepChange = async (valor: string) => {
+    setCep(valor);
+    setCepNaoEncontrado(false);
+    if (limparCep(valor).length !== 8) return;
+
+    setBuscandoCep(true);
+    try {
+      const endereco = await buscarEnderecoPorCep(valor);
+      if (endereco) {
+        setLogradouro(endereco.logradouro);
+        setBairro(endereco.bairro);
+      } else {
+        setCepNaoEncontrado(true);
+      }
+    } finally {
+      setBuscandoCep(false);
+    }
+  };
+
+  const confirmarEndereco = async () => {
+    setErro(null);
+    if (!bairro.trim()) {
+      setErro('Informe ao menos o bairro pra continuar.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const responsavel = await cadastrarResponsavel({
+        ...dadosIdentidade,
+        bairro,
+        cep: limparCep(cep) || undefined,
+        logradouro: logradouro || undefined,
+        numero: numero || undefined,
+        complemento: complemento || undefined,
+      });
+      const resultado = await solicitarCodigoResponsavel(dadosIdentidade.cpf, dadosIdentidade.dataNascimento);
+      setInfoEnvio(
+        resultado.modo === 'email'
+          ? 'Código enviado para o seu e-mail cadastrado.'
+          : 'Modo de teste (sem SMTP configurado) — código: ver console do backend.'
+      );
+      setCodigoSolicitado(true);
+      // guarda o id já cadastrado pra usar depois da verificação do código
+      responsavelIdRef.current = responsavel.id;
+    } catch (e) {
+      setErro((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const verificar = async () => {
+    setErro(null);
+    setLoading(true);
+    try {
+      await verificarCodigoResponsavel(dadosIdentidade.cpf, codigo);
+      onConcluido(responsavelIdRef.current!, bairro);
+    } catch (e) {
+      setErro((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (codigoSolicitado) {
+    return (
+      <Stack spacing={2.5}>
+        {infoEnvio && <Alert severity="info">{infoEnvio}</Alert>}
+        {erro && <Alert severity="error">{erro}</Alert>}
+        <TextField label="Código de verificação" value={codigo} onChange={(e) => setCodigo(e.target.value)} />
+        <LoadingButton variant="contained" size="large" loading={loading} onClick={verificar}>
+          Confirmar código
+        </LoadingButton>
+      </Stack>
+    );
+  }
+
+  return (
+    <Stack spacing={2.5}>
+      <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+        Seu endereço define quais creches aparecem como mais próximas na próxima etapa.
+      </Typography>
+
+      {erro && <Alert severity="error">{erro}</Alert>}
+      {cepNaoEncontrado && (
+        <Alert severity="warning">CEP não encontrado — preencha o endereço manualmente abaixo.</Alert>
+      )}
+
+      <TextField
+        label="CEP"
+        value={cep}
+        onChange={(e) => handleCepChange(e.target.value)}
+        placeholder="Somente números"
+        slotProps={{ input: { endAdornment: buscandoCep ? <CircularProgress size={18} /> : undefined } }}
+      />
+      <TextField label="Logradouro" value={logradouro} onChange={(e) => setLogradouro(e.target.value)} />
+      <Stack direction="row" spacing={2}>
+        <TextField label="Número" value={numero} onChange={(e) => setNumero(e.target.value)} sx={{ flex: 1 }} />
+        <TextField
+          label="Complemento"
+          value={complemento}
+          onChange={(e) => setComplemento(e.target.value)}
+          sx={{ flex: 2 }}
+        />
+      </Stack>
+      <TextField label="Bairro" value={bairro} onChange={(e) => setBairro(e.target.value)} />
+
+      <LoadingButton variant="contained" size="large" loading={loading} onClick={confirmarEndereco}>
+        Cadastrar e receber código
       </LoadingButton>
     </Stack>
   );

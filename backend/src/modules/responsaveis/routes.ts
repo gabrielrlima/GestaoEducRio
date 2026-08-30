@@ -17,6 +17,7 @@ export const responsaveisRoutes = new Elysia({ prefix: '/responsaveis' })
         bairro: t.String(),
         logradouro: t.Optional(t.String()),
         numero: t.Optional(t.String()),
+        complemento: t.Optional(t.String()),
         nis: t.Optional(t.String()),
       }),
     }
@@ -38,6 +39,7 @@ export const responsaveisRoutes = new Elysia({ prefix: '/responsaveis' })
         bairro: t.Optional(t.String()),
         logradouro: t.Optional(t.String()),
         numero: t.Optional(t.String()),
+        complemento: t.Optional(t.String()),
         nis: t.Optional(t.String()),
       }),
     }

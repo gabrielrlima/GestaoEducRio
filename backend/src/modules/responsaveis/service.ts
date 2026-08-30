@@ -15,6 +15,7 @@ export interface Responsavel {
   bairro: string;
   logradouro: string | null;
   numero: string | null;
+  complemento: string | null;
   latitude: number | null;
   longitude: number | null;
   nis: string | null;
@@ -33,6 +34,7 @@ export interface CreateResponsavelInput {
   bairro: string;
   logradouro?: string;
   numero?: string;
+  complemento?: string;
   nis?: string;
 }
 
@@ -70,10 +72,10 @@ export async function upsertResponsavel(input: CreateResponsavelInput): Promise<
   const id = randomUUID();
   db.query(
     `INSERT INTO responsavel
-       (id, cpf, nome, data_nascimento, telefone, email, cep, bairro, logradouro, numero,
+       (id, cpf, nome, data_nascimento, telefone, email, cep, bairro, logradouro, numero, complemento,
         nis, bolsa_familia_status, bolsa_familia_consultado_em)
      VALUES
-       ($id, $cpf, $nome, $dataNascimento, $telefone, $email, $cep, $bairro, $logradouro, $numero,
+       ($id, $cpf, $nome, $dataNascimento, $telefone, $email, $cep, $bairro, $logradouro, $numero, $complemento,
         $nis, $bolsaFamiliaStatus, $bolsaFamiliaConsultadoEm)`
   ).run({
     $id: id,
@@ -86,6 +88,7 @@ export async function upsertResponsavel(input: CreateResponsavelInput): Promise<
     $bairro: input.bairro,
     $logradouro: input.logradouro ?? null,
     $numero: input.numero ?? null,
+    $complemento: input.complemento ?? null,
     $nis: nis,
     $bolsaFamiliaStatus: bolsaFamiliaStatus,
     $bolsaFamiliaConsultadoEm: bolsaFamiliaConsultadoEm,
@@ -123,6 +126,7 @@ export async function updateResponsavel(id: string, patch: Partial<CreateRespons
     bairro: 'bairro',
     logradouro: 'logradouro',
     numero: 'numero',
+    complemento: 'complemento',
     nis: 'nis',
   };
 

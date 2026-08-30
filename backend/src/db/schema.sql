@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS responsavel (
   bairro            TEXT NOT NULL,
   logradouro        TEXT,
   numero            TEXT,
+  complemento       TEXT,
   latitude          REAL,
   longitude         REAL,
   nis                          TEXT,     -- Número de Identificação Social, opcional — usado só pra consultar Bolsa Família

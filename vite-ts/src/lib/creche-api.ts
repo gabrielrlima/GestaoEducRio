@@ -93,7 +93,11 @@ export interface Responsavel {
   data_nascimento: string;
   email: string;
   telefone: string | null;
+  cep: string | null;
   bairro: string;
+  logradouro: string | null;
+  numero: string | null;
+  complemento: string | null;
 }
 
 export interface Crianca {
@@ -204,6 +208,9 @@ export async function cadastrarResponsavel(input: {
   bairro: string;
   telefone?: string;
   cep?: string;
+  logradouro?: string;
+  numero?: string;
+  complemento?: string;
 }) {
   const { data } = await client.post<Responsavel>('/responsaveis', input);
   return data;
